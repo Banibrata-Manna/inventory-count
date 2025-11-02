@@ -8,14 +8,12 @@ import 'vue-router'
 import { DxpLogin, getAppLoginUrl, useAuthStore } from '@hotwax/dxp-components';
 import { loader } from '@/user-utils';
 import Tabs from '@/views/Tabs.vue';
-import Assigned from "@/views/Assigned.vue";
+import CycleCounts from "@/views/CycleCounts.vue";
 import AssignedDetail from "@/views/AssignedDetail.vue";
-import PendingReview from '@/views/PendingReview.vue';
 import PendingReviewDetail from '@/views/PendingReviewDetail.vue';
 import Settings from "@/views/Settings.vue";
 import SessionCountDetail from "@/views/SessionCountDetail.vue"
 import BulkUpload from "@/views/BulkUpload.vue";
-import Closed from "@/views/Closed.vue";
 import StorePermissions from "@/views/StorePermissions.vue";
 import ClosedDetail from "@/views/ClosedDetail.vue";
 import { createOutline, storefrontOutline, mailUnreadOutline, receiptOutline, shieldCheckmarkOutline , settingsOutline} from "ionicons/icons";
@@ -88,7 +86,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/assigned',
     name: 'Assigned',
-    component: Assigned,
+    component: CycleCounts,
     beforeEnter: authGuard,
     meta: {
       permissionId: "APP_ASSIGNED_VIEW",
@@ -99,19 +97,6 @@ const routes: Array<RouteRecordRaw> = [
     }
   },
   {
-    path: '/closed',
-    name: 'Closed',
-    component: Closed,
-    beforeEnter: authGuard,
-    meta: {
-      permissionId: "APP_CLOSED_VIEW",
-      showInMenu: true,
-      title: "Closed",
-      iosIcon: receiptOutline,
-      mdIcon: receiptOutline,
-    }
-  },
-  {
     path: '/assigned/:workEffortId',
     name: 'AssignedDetail',
     component: AssignedDetail,
@@ -119,19 +104,6 @@ const routes: Array<RouteRecordRaw> = [
     props: true,
     meta: {
       permissionId: "APP_ASSIGNED_VIEW"
-    }
-  },
-  {
-    path: '/pending-review',
-    name: 'PendingReview',
-    component: PendingReview,
-    beforeEnter: authGuard,
-    meta: {
-      permissionId: "APP_PENDING_REVIEW_VIEW",
-      showInMenu: true,
-      title: "Pending review",
-      iosIcon: mailUnreadOutline,
-      mdIcon: mailUnreadOutline,
     }
   },
   {
@@ -180,7 +152,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/pending-review',
     name: 'PendingReview',
-    component: PendingReview,
+    component: CycleCounts,
     beforeEnter: authGuard,
     meta: {
       permissionId: "APP_PENDING_REVIEW_VIEW",
@@ -203,7 +175,7 @@ const routes: Array<RouteRecordRaw> = [
   {
     path: '/closed',
     name: 'Closed',
-    component: Closed,  
+    component: CycleCounts,  
     beforeEnter: authGuard,
     meta: {
       permissionId: "APP_CLOSED_VIEW",
