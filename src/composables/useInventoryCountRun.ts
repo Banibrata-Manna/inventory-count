@@ -3,6 +3,7 @@ import { hasError } from '@/stores/useAuthStore';
 import { DateTime } from 'luxon';
 import logger from '@/logger';
 import { useProductStore } from '@/stores/useProductStore';
+import { reactive } from 'vue';
 
 async function loadStatusDescription() {
     // Skip reload if already present
@@ -147,11 +148,15 @@ const getCycleCountStatusDesc = async (): Promise<any> => {
   })
 }
 
+const query = reactive({
+  queryString: '',
+  sortby: 'workEffortName asc'
+});
+
 /**
  * Composable for work-effort (cycle count run) level operations
  */
 export function useInventoryCountRun() {
-  
 
   async function getCreatedAndAssignedWorkEfforts(params: any) {
     let workEfforts: any[] = [];
@@ -224,6 +229,10 @@ export function useInventoryCountRun() {
     let total = 0;
     let isScrollable = true;
 
+    console.log("This is query in the composable: ", query)
+
+    if (query.queryString) params.workEffortName = query.queryString;
+    if (query.sortby) params.orderByField = query.sortby;
     try {
       const resp = await api({
         url: 'inventory-cycle-count/cycleCounts/workEfforts',
@@ -250,6 +259,9 @@ export function useInventoryCountRun() {
 
   async function getAssignedCycleCounts(params: any): Promise<{ data: any[]; total: number }> {
     try {
+    console.log("This is query in the composable: ", query)
+      if (query.queryString) params.workEffortName = query.queryString;
+      if (query.sortby) params.orderByField = query.sortby;
       const resp = await api({
         url: 'inventory-cycle-count/cycleCounts/workEfforts',
         method: 'get',
@@ -257,7 +269,8 @@ export function useInventoryCountRun() {
           pageSize: params.pageSize || Number(process.env.VUE_APP_VIEW_SIZE) || 20,
           pageIndex: params.pageIndex || 0,
           currentStatusId: params.currentStatusId || 'CYCLE_CNT_CREATED,CYCLE_CNT_IN_PRGS',
-          currentStatusId_op: params.currentStatusId_op || 'in'
+          currentStatusId_op: params.currentStatusId_op || 'in',
+          ...params
         }
       })
 
@@ -277,6 +290,8 @@ export function useInventoryCountRun() {
 
   /** Clear list utility */
   function clearCycleCountList() {
+    query.queryString = '';
+    query.sortby = '';
     return { cycleCounts: [], total: 0, isScrollable: false };
   }
 
@@ -300,6 +315,7 @@ export function useInventoryCountRun() {
     getAssignedCycleCounts,
     getCycleCounts,
     clearCycleCountList,
-    loadStatusDescription
+    loadStatusDescription,
+    query
   };
 }

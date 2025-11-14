@@ -13,7 +13,7 @@
     </ion-header>
 
     <ion-content ref="contentRef" :scroll-events="true" @ionScroll="enableScrolling()" id="filter">
-      <!-- <SearchBarAndSortBy /> -->
+      <SearchBarAndSortBy />
       <p v-if="!cycleCounts?.length" class="empty-state">
         {{ translate("No cycle counts found") }}
       </p>
@@ -51,7 +51,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { IonBadge, IonButtons, IonChip, IonContent, IonHeader, IonIcon, IonItem, IonInfiniteScroll, IonInfiniteScrollContent, IonLabel, IonList, IonMenuButton, IonPage, IonTitle, IonToolbar, onIonViewDidEnter, onIonViewWillLeave } from "@ionic/vue";
 import { filterOutline, storefrontOutline } from "ionicons/icons";
 import { translate } from '@/i18n'
@@ -61,6 +61,7 @@ import { useFacilityStore } from "@/stores/useFacilityStore";
 import { loader } from "@/services/uiUtils";
 import { DateTime } from "luxon";
 import { useProductStore } from "@/stores/useProductStore";
+import SearchBarAndSortBy from "@/components/SearchBarAndSortBy.vue";
 // import Filters from "@/components/Filters.vue"
 
 // import SearchBarAndSortBy from "@/components/SearchBarAndSortBy.vue";
@@ -85,6 +86,21 @@ onIonViewDidEnter(async () => {
 onIonViewWillLeave(async () => {
   await useInventoryCountRun().clearCycleCountList();
 })
+
+watch(useInventoryCountRun().query, async () => {
+    await loader.present("Loading...");
+    console.log("Hi in Watch");
+    try {
+      cycleCounts.value = [];
+      pageIndex.value = 0;
+      await getAssignedCycleCounts();
+    } catch (err) {
+      console.error(err);
+    }
+    loader.dismiss();
+  },
+  { deep: true }
+)
 
 function enableScrolling() {
   const parentElement = contentRef.value.$el
