@@ -71,7 +71,6 @@
               </ion-button>
             </div>
         </div>
-      </div>
       <!-- Segments -->
 
       <div class="segments-container">
@@ -319,6 +318,7 @@
           </ion-accordion-group>
         </ion-segment-content>
       </ion-segment-view>
+      </div>
     </ion-content>
   </ion-page>
 </template>
