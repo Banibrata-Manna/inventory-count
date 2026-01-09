@@ -727,11 +727,14 @@ function adjustEdit(delta: number) {
 }
 
 async function showEditImportItemsModal() {
-  const resp = await useInventoryCountImport().getSessionItemsByImportId({
-    inventoryCountImportId: selectedSession.value.inventoryCountImportId,
-    productId: selectedSession.value.productId,
-    facilityId: workEffort.value.facilityId,
-  });
+  // FIXME: This is not correct API call, in Maarg it is different, returns joined Import Item with Inventory Item
+  const resp = await useInventoryCountImport().getSessionItemsByImportId(
+    selectedSession.value.inventoryCountImportId,
+    {
+      productId: selectedSession.value.productId,
+      facilityId: workEffort.value.facilityId
+    }
+  );
 
   selectedSession.value.importItems = resp.data;
   editAdjustment.value = 0;

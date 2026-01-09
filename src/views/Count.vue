@@ -497,7 +497,7 @@ async function checkAndNavigateToSession(session, workEffortPurposeTypeId) {
       inventoryCountImportId: session.inventoryCountImportId,
     });
 
-    const activeLock = resp?.data?.entityValueList?.[0];
+    const activeLock = resp?.data;
 
     // If another user is already working, block navigation
     if (activeLock && activeLock.userId && activeLock.userId !== userId) {

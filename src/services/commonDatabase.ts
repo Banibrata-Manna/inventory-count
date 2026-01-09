@@ -21,6 +21,7 @@ export interface ProductInventory {
 export interface InventoryCountImportItem {
   inventoryCountImportId: string
   productId: string | null
+  lotId: string | null
   uuid: string
   productIdentifier: string
   locationSeqId?: string | null
@@ -40,6 +41,8 @@ export interface InventoryCountImportItem {
 export interface ScanEvent {
   id?: number
   scannedValue?: string
+  scannedLotId?: string | null
+  lotId?: string | null
   productId?: string | null
   inventoryCountImportId: string
   locationSeqId?: string | null
@@ -48,9 +51,19 @@ export interface ScanEvent {
   aggApplied: number
 }
 
+export interface LotAndProduct {
+  lotId: string
+  productId: string
+}
+
 export interface AppPreferences {
   key: string
   value: string
+}
+
+export interface LastSessionAndLocation {
+  inventoryCountImportId: string
+  locationSeqId: string
 }
 
 export class CommonDB extends Dexie {
@@ -60,6 +73,8 @@ export class CommonDB extends Dexie {
   inventoryCountRecords!: Table<InventoryCountImportItem, [string, string]>
   scanEvents!: Table<ScanEvent, number>
   appPreferences!: Table<AppPreferences, string>
+  lotAndProduct!: Table<LotAndProduct, [string, string]>
+  lastSessionAndLocation!: Table<LastSessionAndLocation, [string, string]>
 
   constructor(omsInstance: string) {
     super(`${omsInstance}-CommonDB`)
@@ -69,8 +84,10 @@ export class CommonDB extends Dexie {
       productIdentification: '[productId+identKey], identKey, value',
       productInventory: '[productId+facilityId], productId, facilityId',
       inventoryCountRecords: '[inventoryCountImportId+uuid], inventoryCountImportId, uuid, productIdentifier, productId, quantity, isRequested',
-      scanEvents: '++id, inventoryCountImportId, scannedValue, productId, aggApplied',
-      appPreferences: 'key'
+      scanEvents: '++id, inventoryCountImportId, scannedValue, scannedLotId, productId, lotId, aggApplied',
+      appPreferences: 'key',
+      lotAndProduct: '[lotId+productId], lotId, productId',
+      lastSessionAndLocation: '[inventoryCountImportId+locationSeqId], inventoryCountImportId, locationSeqId'
     })
   }
 }

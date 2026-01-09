@@ -107,25 +107,19 @@ async function performHeartbeat() {
     try {
       const resp = await workerApi({
         baseURL: maargUrl,
-        url: 'oms/dataDocumentView',
+        url: 'service/getSessionLock',
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
         data: {
-          dataDocumentId: 'InventoryCountImportLock',
-          filterByDate: true,
-          pageIndex: 0,
-          pageSize: 1,
-          customParametersMap: {
             inventoryCountImportId,
             fromDate: lock.fromDate
           }
-        }
       })
 
-      activeLock = resp?.entityValueList?.[0] || null
+      activeLock = resp || null
     } catch (err: any) {
       console.error('[LockHeartbeatWorker] Active lock check failed:', err)
       self.postMessage({
@@ -165,8 +159,8 @@ async function performHeartbeat() {
 
     await workerApi({
       baseURL: maargUrl,
-      url: `inventory-cycle-count/cycleCounts/sessions/${inventoryCountImportId}/lock`,
-      method: 'PUT',
+      url: `service/updateInventoryCountImportLock`,
+      method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
       data: body
     })

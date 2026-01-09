@@ -8,8 +8,10 @@ import { useProductStore } from '@/stores/productStore';
 
 interface RecordScanParams {
   inventoryCountImportId: string;
+  lotId?: string;
   productId?: string;
-  productIdentifier: string;
+  productIdentifier?: string;
+  scannedLotId?: string;
   quantity: number;
   locationSeqId?: string | null;
 }
@@ -25,6 +27,8 @@ function currentMillis(): number {
   async function recordScan(params: RecordScanParams): Promise<void> {
     const event: ScanEvent = {
       inventoryCountImportId: params.inventoryCountImportId,
+      lotId: params.lotId || null,
+      scannedLotId: params.scannedLotId || null,
       productId: params.productId || null,
       locationSeqId: params.locationSeqId || null,
       scannedValue: params.productIdentifier,
@@ -38,7 +42,7 @@ function currentMillis(): number {
   async function storeInventoryCountItems(items: any[]) {
     if (!items?.length) return;
 
-    await useProductMaster().upsertInventoryFromSessionItems(items);
+    // await useProductMaster().upsertInventoryFromSessionItems(items);
     try {
       // Normalize or enrich data before storing if needed
       const facilityId = useProductStore().getCurrentFacility.facilityId || '';
@@ -149,11 +153,12 @@ function currentMillis(): number {
     }
   }
 
-  async function getInventoryCountImportItemsCount(inventoryCountImportId: string): Promise<number> {
+  async function getInventoryCountImportItemsCount(inventoryCountImportId: string, locationSeqId: string): Promise<number> {
     try {
       const count = await db.inventoryCountRecords
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(item => item.locationSeqId === locationSeqId)
         .count();
 
       return count;
@@ -179,11 +184,12 @@ function currentMillis(): number {
   }
 }
 
-  async function getSessionProductIds(inventoryCountImportId: string): Promise<string[]> {  
+  async function getSessionProductIds(inventoryCountImportId: string, locationSeqId: string): Promise<string[]> {  
     try {
       const items = await db.inventoryCountRecords
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(item => item.locationSeqId === locationSeqId)
         .toArray();
 
       if (!items.length) return [];
@@ -243,11 +249,22 @@ function currentMillis(): number {
   
     return [...map.values()];
   }
-  const getUnmatchedItems = (inventoryCountImportId: string) =>
+
+  const getCurrentLocationSeqId = (inventoryCountImportId: string) => 
+    liveQuery(async () => {
+      const record = await db.lastSessionAndLocation
+      .where('inventoryCountImportId')
+      .equals(inventoryCountImportId)
+      .first();
+      return record?.locationSeqId || '';
+    });
+
+  const getUnmatchedItems = (inventoryCountImportId: string, locationSeqId: string) =>
     liveQuery(async () => {  
       const items = await db.inventoryCountRecords
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(item => item.locationSeqId === locationSeqId)
         .filter(item => !item.productId)
         .toArray()
 
@@ -261,11 +278,12 @@ function currentMillis(): number {
       }))
     });
 
-  const getCountedItems = (inventoryCountImportId: string) =>
+  const getCountedItems = (inventoryCountImportId: string, locationSeqId: string) =>
     liveQuery(async () => {  
       const items = await db.inventoryCountRecords
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(item => item.locationSeqId === locationSeqId)
         .filter(item => ((item.isRequested === 'Y' || item.isRequested === null) && Boolean(item.productId)))
         .toArray()
 
@@ -282,11 +300,12 @@ function currentMillis(): number {
       }))
     });
 
-  const getUncountedItems = (inventoryCountImportId: string) =>
+  const getUncountedItems = (inventoryCountImportId: string, locationSeqId: string) =>
     liveQuery(async () => {  
       const items = await db.inventoryCountRecords
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(item => item.locationSeqId === locationSeqId)
         .toArray()
 
       const grouped = groupByProductAndSum(items)
@@ -312,11 +331,12 @@ function currentMillis(): number {
       }))
     });
 
-  const getUndirectedItems = (inventoryCountImportId: string) =>
+  const getUndirectedItems = (inventoryCountImportId: string, locationSeqId: string) =>
     liveQuery(async () => {    
       const items = await db.table('inventoryCountRecords')
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(item => item.locationSeqId === locationSeqId)
         .filter(item => item.isRequested === 'N' && Boolean(item.productId))
         .toArray();
 
@@ -333,11 +353,12 @@ function currentMillis(): number {
       }))
     });
 
-  const getScanEvents = (inventoryCountImportId: string) =>
+  const getScanEvents = (inventoryCountImportId: string, locationSeqId: string) =>
     liveQuery(async () => {    
       const events = await db.scanEvents
         .where('inventoryCountImportId')
         .equals(inventoryCountImportId)
+        .and(event => event.locationSeqId === locationSeqId)
         .reverse()
         .sortBy('createdAt');
 
@@ -354,22 +375,30 @@ function currentMillis(): number {
       return enriched || [];
     });
 
-  const getTotalCountedUnits = (inventoryCountImportId: string) =>
+  const getTotalCountedUnits = (inventoryCountImportId: string, locationSeqId: string) =>
   liveQuery(async () => { 
     const items = await db.inventoryCountRecords
       .where('inventoryCountImportId')
       .equals(inventoryCountImportId)
+      .and(item => item.locationSeqId === locationSeqId)
       .toArray()
 
     return items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
   })
 
+  const mapSessionAndLocation = async (inventoryCountImportId: string, locationSeqId: string) => {
+    await db.lastSessionAndLocation.put({
+      inventoryCountImportId,
+      locationSeqId: locationSeqId
+    });
+  }
+
    /* API call functions moved from CountService.ts */   
 const getInventoryCountImportSession = async (params: { inventoryCountImportId: string; }): Promise<any> => {
   return await api({
-    url: `inventory-cycle-count/cycleCounts/sessions/${params.inventoryCountImportId}`,
-    method: 'get',
-    params
+    url: `service/getInventoryCountImport`,
+    method: 'POST',
+    data: params
   });
 }
 async function discardSession(inventoryCountImportId: string): Promise<void> {
@@ -426,11 +455,14 @@ const cloneSession = async (payload: any): Promise <any> => {
   })
 }
 
-const getSessionItemsByImportId = async (params: any): Promise<any> => {
+const getSessionItemsByImportId = async (inventoryCountImportId: string, params: any): Promise<any> => {
   return await api({
-    url: `inventory-cycle-count/cycleCounts/sessions/${params.inventoryCountImportId}/items`,
-    method: 'GET',
-    params
+    url: `service/getInventoryCountSessionItems`,
+    method: 'POST',
+    data: {
+      inventoryCountImportId,
+      ...params
+    }
   });
 }
 
@@ -452,23 +484,15 @@ const deleteSessionItem = async (params: any): Promise<any> => {
 
 const getSessionLock = async (payload: any): Promise<any> => {
   return await api({
-    url: `oms/dataDocumentView`,
+    url: `service/getSessionLock`,
     method: 'POST',
-    data: {
-      dataDocumentId: 'InventoryCountImportLock',
-      filterByDate: true,
-      pageIndex: 0,
-      pageSize: 100,
-      customParametersMap: {
-        ...payload
-      }
-    }
+    data: payload
   });
 }
 
   const lockSession = async (payload: any): Promise<any> => {
     return await api({
-      url: `inventory-cycle-count/cycleCounts/sessions/${payload.inventoryCountImportId}/lock`,
+      url: `service/createSessionLock`,
       method: 'POST',
       data: payload
     });
@@ -476,16 +500,17 @@ const getSessionLock = async (payload: any): Promise<any> => {
 
   const releaseSession = async (payload: any): Promise<any> => {
     return await api({
-      url: `inventory-cycle-count/cycleCounts/sessions/${payload.inventoryCountImportId}/release`,
-      method: 'PUT',
+      url: `service/updateInventoryCountImportLock`,
+      method: 'POST',
       data: payload
     });
   }
 
-  async function getInventoryCountImportItemCount(inventoryCountImportId: string) {
+  async function getInventoryCountImportItemCount(inventoryCountImportId: string, params: any) {
     return api({
-      url: `inventory-cycle-count/cycleCounts/sessions/${inventoryCountImportId}/items/count`,
-      method: 'GET'
+      url: `service/getInventoryCountImportItemCount`,
+      method: 'POST',
+      data: { inventoryCountImportId, ...params }
     })
   }
 
@@ -506,6 +531,7 @@ export function useInventoryCountImport() {
     cloneSession,
     discardSession,
     getCountedItems,
+    getCurrentLocationSeqId,
     getInventoryCountImportByProductId,
     getInventoryCountImportItemCount,
     getInventoryCountImportItems,
@@ -522,6 +548,7 @@ export function useInventoryCountImport() {
     getUndirectedItems,
     getUnmatchedItems,
     lockSession,
+    mapSessionAndLocation,
     recordScan,
     releaseSession,
     searchInventoryItemsByIdentifier,

@@ -621,11 +621,14 @@ function closeEditImportItemModal() {
 
 async function showEditImportItemsModal() {
   try {
-    const resp = await useInventoryCountImport().getSessionItemsByImportId({
-      inventoryCountImportId: selectedSession.value.inventoryCountImportId,
-      productId: selectedSession.value.productId,
-      facilityId: workEffort.value.facilityId,
-    });
+    // FIXME: This is not correct API call, in Maarg it is different, returns joined Import Item with Inventory Item
+    const resp = await useInventoryCountImport().getSessionItemsByImportId(
+      selectedSession.value.inventoryCountImportId,
+      {
+        productId: selectedSession.value.productId,
+        facilityId: workEffort.value.facilityId
+      }
+    );
     if (resp?.data?.length) {
       selectedSession.value.importItems = resp.data;
       isEditImportItemModalOpen.value = true;
@@ -705,11 +708,14 @@ async function saveEditImportItems() {
 async function removeProductFromSession() {
   await loader.present("Removing...");
   try {
-    const resp = await useInventoryCountImport().getSessionItemsByImportId({
-      inventoryCountImportId: selectedSession.value.inventoryCountImportId,
-      productId: selectedSession.value.productId,
-      facilityId: workEffort.value.facilityId,
-    });
+    // FIXME: This is not correct API call, in Maarg it is different, returns joined Import Item with Inventory Item
+    const resp = await useInventoryCountImport().getSessionItemsByImportId(
+      selectedSession.value.inventoryCountImportId,
+      {
+        productId: selectedSession.value.productId,
+        facilityId: workEffort.value.facilityId
+      }
+    );
 
     await useInventoryCountImport().deleteSessionItem({
       inventoryCountImportId: selectedSession.value.inventoryCountImportId,

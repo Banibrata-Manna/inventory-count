@@ -7,7 +7,6 @@
       </ion-toolbar>
       <ion-segment v-model="activeSegment">
         <ion-segment-button value="location">{{ translate("location") }}</ion-segment-button>
-        <ion-segment-button value="product">{{ translate("product") }}</ion-segment-button>
       </ion-segment>
     </ion-header>
     <ion-content>
@@ -70,64 +69,6 @@
           </ion-item>
         </ion-card>
       </ion-segment-content>
-      <ion-segment-content v-show="activeSegment === 'product'" id="product">
-        <ion-card v-for="product in itemsByProduct" :key="product.productId">
-          <ion-card-header>
-            <ion-card-title>
-              {{ product.product.productName }}
-            </ion-card-title>
-            <ion-label class="ion-text-end">
-              {{ translate("locations remaining", { count: product.pendingCount }) }}
-              <p>{{ translate("requested", { count: product.totalCount }) }}</p>
-            </ion-label>
-          </ion-card-header>
-
-          <ion-item lines="none">
-            <ion-label>
-              <p>{{ translate("Sessions for this product") }}</p>
-            </ion-label>
-          </ion-item>
-
-          <ion-item-divider color="light">
-            <ion-label>{{ translate("On this device") }}</ion-label>
-          </ion-item-divider>
-
-          <ion-list v-if="product.sessions.onDevice.length">
-            <ion-item v-for="session in product.sessions.onDevice" :key="session.inventoryCountImportId" @click="viewSession(session)" button detail>
-              <ion-label>
-                {{ session.countImportName || translate("Untitled session") }}
-                <p>{{ translate("Created by") }} {{ session.uploadedByUserLogin }}</p>
-              </ion-label>
-              <ion-note slot="end">{{ getSessionStatus(session.statusId) }}</ion-note>
-            </ion-item>
-
-            <ion-button v-if="product.sessions.onDevice.length" fill="outline" expand="block" class="ion-margin" @click.stop="viewSession(product.sessions.onDevice[0])">
-              {{ translate("CONTINUE SESSION") }}
-            </ion-button>
-          </ion-list>
-
-          <ion-button fill="outline" expand="block" class="ion-margin" @click="startNewSession(undefined, product.product.productName)">
-            {{ translate("START NEW SESSION") }}
-          </ion-button>
-
-          <ion-item-divider color="light">
-            <ion-label>{{ translate("Other sessions") }}</ion-label>
-          </ion-item-divider>
-
-          <ion-list v-if="product.sessions.other.length">
-            <ion-item v-for="session in product.sessions.other" :key="session.inventoryCountImportId" @click="viewSession(session)" button detail>
-              <ion-label>
-                {{ session.countImportName || translate("Untitled session") }}
-                <p>{{ translate("Created by") }} {{ session.uploadedByUserLogin }}</p>
-              </ion-label>
-              <ion-note slot="end">{{ getSessionStatus(session.statusId) }}</ion-note>
-            </ion-item>
-          </ion-list>
-          <ion-item v-else lines="none">
-            <ion-label><p>{{ translate("No other sessions") }}</p></ion-label>
-          </ion-item>
-        </ion-card>
-      </ion-segment-content>
     </ion-segment-view>
     </ion-content>
   </ion-page>
@@ -143,13 +84,13 @@ import { IonBackButton, IonCard, IonCardHeader, IonCardTitle, IonContent, IonHea
 import { ref, defineProps, computed } from 'vue';
 import { useUserProfile } from '@/stores/userProfileStore';
 import router from '@/router';
+import { useInventoryCountImport } from '@/composables/useInventoryCountImport';
 
 const activeSegment = ref('location')
 
 const inventoryCountItems = ref<any>([]);
 const sessions = ref<any>([]);
 const itemsByLocation = ref<any>([]);
-const itemsByProduct = ref<any>([]);
 const workEffort = ref<any>(null);
 const userProfile = computed(() => useUserProfile().getUserProfile);
 
@@ -159,19 +100,32 @@ const props = defineProps<{
 
 onIonViewDidEnter(async () => {
   await loader.present("Loading...");
+  await getWorkEffortDetails();
   await getCycleCountItems();
   groupItemsByLocationAndProduct();
   loader.dismiss();
 });
 
-
-
-async function getCycleCountItems() {
+async function getWorkEffortDetails() {
   try {
-    const resp = await useInventoryCountRun().getCycleCountItems({ workEffortId: props.workEffortId });
+    const resp = await useInventoryCountRun().getWorkEffort({ workEffortId: props.workEffortId });
 
     if (resp && !hasError(resp)) {
       workEffort.value = resp.data;
+    } else {
+      throw resp;
+    }
+  } catch (error) {
+    console.error("Error getting work effort details", error);
+    showToast("Falied to fetch work effort details");
+  }
+}
+
+async function getCycleCountItems() {
+  try {
+    const resp = await useInventoryCountRun().getCycleCountItems({ workEffortId: workEffort.value.workEffortId });
+
+    if (resp && !hasError(resp)) {
       if (resp.data?.items?.length) {
         const importItems = resp.data.items;
 
@@ -252,25 +206,8 @@ function groupItemsByLocationAndProduct() {
     }
   );
 
-  itemsByProduct.value = Object.entries(productMap).map(
-    ([productId, items]) => {
-      const pendingItems = items.filter(i => i.quantity === null);
-      const productSessions = sessions.value.filter((s: any) => 
-        items.some((item: any) => item.inventoryCountImportId === s.inventoryCountImportId)
-      );
-
-      return {
-        productId,
-        product: items[0].product,
-        pendingCount: new Set(pendingItems.map(i => i.locationSeqId)).size,
-        totalCount: new Set(items.map(i => i.locationSeqId)).size,
-        sessions: {
-          onDevice: productSessions.filter((s: any) => s.uploadedByUserLogin === userProfile.value.userLoginId),
-          other: productSessions.filter((s: any) => s.uploadedByUserLogin !== userProfile.value.userLoginId)
-        }
-      }
-    }
-  );
+  console.log("By Location: ", itemsByLocation.value);
+  console.log("Session Map: ", sessionMap.value);
 }
 
 function getSessionStatus(statusId: string) {
@@ -284,6 +221,8 @@ function getSessionStatus(statusId: string) {
 }
 
 function viewSession(session: any) {
+  console.log("Viewing session: ", session);
+  useInventoryCountImport().mapSessionAndLocation(session.inventoryCountImportId, session.facilityAreaId);
   router.push(`/session-count-detail/${props.workEffortId}/${workEffort.value?.workEffortPurposeTypeId}/${session.inventoryCountImportId}`);
 }
 

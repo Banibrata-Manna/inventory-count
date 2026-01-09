@@ -37,8 +37,11 @@ const getWorkEfforts = async (params: any): Promise<any> => {
 /** Get specific work effort detail */
 const getWorkEffort = async (payload: any): Promise<any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/workEfforts/${payload.workEffortId}`,
-    method: "get"
+    url: `service/getCycleCount`,
+    method: "POST",
+    data: {
+      workEffortId: payload.workEffortId
+    }
   });
 };
 
