@@ -24,6 +24,7 @@ export interface InventoryCountImportItem {
   lotId: string | null
   uuid: string
   productIdentifier: string
+  lotIdentifier?: string | null
   locationSeqId?: string | null
   quantity: number
   status: 'active' | 'closed'
@@ -53,6 +54,7 @@ export interface ScanEvent {
 
 export interface LotAndProduct {
   lotId: string
+  externalLotId: string
   productId: string
 }
 
@@ -83,10 +85,10 @@ export class CommonDB extends Dexie {
       products: 'productId, updatedAt',
       productIdentification: '[productId+identKey], identKey, value',
       productInventory: '[productId+facilityId], productId, facilityId',
-      inventoryCountRecords: '[inventoryCountImportId+uuid], inventoryCountImportId, uuid, productIdentifier, productId, quantity, isRequested',
+      inventoryCountRecords: '[inventoryCountImportId+uuid], inventoryCountImportId, uuid, productIdentifier, lotIdentifier, productId, lotId, quantity, isRequested',
       scanEvents: '++id, inventoryCountImportId, scannedValue, scannedLotId, productId, lotId, aggApplied',
       appPreferences: 'key',
-      lotAndProduct: '[lotId+productId], lotId, productId',
+      lotAndProduct: '[lotId+productId], lotId, productId, externalLotId',
       lastSessionAndLocation: '[inventoryCountImportId+locationSeqId], inventoryCountImportId, locationSeqId'
     })
   }
