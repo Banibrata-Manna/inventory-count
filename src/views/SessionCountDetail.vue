@@ -22,18 +22,18 @@
             <ion-label><h1>{{ currentLocationSeqId }}</h1></ion-label>
           </ion-item>
           <ion-item>
-            <ion-input label="Lot Id" v-model="scannedLot" placeholder="scan lot"></ion-input>
+            <ion-input :disabled="scanProductIdentifier" label="Lot Id" v-model="scannedLot" placeholder="scan lot"></ion-input>
           </ion-item>
           <ion-item>
             <div class="select-left">
-              <ion-checkbox slot="start"></ion-checkbox>
+              <ion-checkbox slot="start" :checked="scanProductIdentifier" @ionChange="scanProductIdentifier = !scanProductIdentifier"></ion-checkbox>
               <span>
                 {{ translate("No lot, scan primary product identifier", { primaryIdentifier: barcodeIdentifierDescription }) }}
               </span>
             </div>
           </ion-item>
           <ion-item>
-            <ion-input :label="barcodeIdentifierDescription" v-model="scannedProdIndentifier" placeholder="scan product"></ion-input>
+            <ion-input :disabled="!scanProductIdentifier" :label="barcodeIdentifierDescription" v-model="scannedProdIndentifier" placeholder="scan product"></ion-input>
           </ion-item>
           <ion-item size="small" class="scan-input">
             <ion-input label="Quantity" type="number" min="1" placeholder="Enter quantity" v-model.number="scannedQuantity"></ion-input>
@@ -56,14 +56,19 @@
                         {{ item.quantity }}
                       </ion-badge>
                   </div>
-                  <ion-label v-if="item.lotId">
-                    <p v-if="item.productId">{{ useProductMaster().primaryId(item.product) }}</p>
-                    <p v-else>{{ translate("Not Found") }}</p>
-                    <h2>{{ item.lotId }}</h2>
+                  <ion-label v-if="item.scannedLotId">
+                    <h2 v-if="item.aggApplied !== 1">{{ translate("Matching...") }}</h2>
+                    <h2 v-else-if="item.productId">{{ useProductMaster().primaryId(item.product) || item.product?.internalName }}</h2>
+                    <p v-else><ion-note color="warning">{{ translate("No Product Found") }}</ion-note></p>
+                    <p v-if="item.aggApplied === 1 && item.lotId">{{ item.scannedLotId }}</p>
+                    <p v-if="item.aggApplied === 1 && !item.lotId"><ion-note color="warning">{{ translate("Lot") }} {{ item.scannedLotId }} {{ translate("Not Found") }}</ion-note></p>
                     <p>{{ translate("Lot") }}</p>
                   </ion-label>
                   <ion-label v-else>
-                    {{ item.scannedValue }}
+                    <h2 v-if="item.aggApplied !== 1">{{ translate("Matching...") }}</h2>
+                    <h2 v-else-if="item.productId">{{ useProductMaster().primaryId(item.product) || item.product?.internalName }}</h2>
+                    <ion-note v-else color="warning">{{ translate("No Product Found") }}</ion-note>
+                    <p>{{ item.scannedValue }}</p>
                     <p class="clickable-time">{{ timeAgo(item.createdAt) }}</p>
                   </ion-label>
                   <ion-badge slot="end" v-if="item.aggApplied === 0" color="primary">
@@ -284,6 +289,7 @@ const isNewLockAcquired = ref(false);
 const getGoodIdentificationOptions = computed(() => useProductStore().getGoodIdentificationOptions);
 const barcodeIdentifierPref = computed(() => useProductStore().getBarcodeIdentificationPref);
 const barcodeIdentifierDescription = computed(() => getGoodIdentificationOptions.value?.find((opt: any) => opt.goodIdentificationTypeId === barcodeIdentifierPref.value)?.description);
+const scanProductIdentifier = ref(false);
 
 watchEffect(() => {
   stats.value = {
