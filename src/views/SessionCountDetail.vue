@@ -2,124 +2,264 @@
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-back-button :default-href="'/count-detail/' + workEffortId" />
-        </ion-buttons>
-        <ion-title>{{ translate("Count item") }}</ion-title>
+        <ion-back-button slot="start" :default-href="'/count-detail/' + workEffortId" />
+        <ion-title>{{ translate("Session") }}</ion-title>
       </ion-toolbar>
+      <ion-segment v-model="activeSegment">
+        <ion-segment-button value="scan">
+          <ion-label>{{ translate("SCAN") }}</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="review">
+          <ion-label>{{ translate("REVIEW & SUBMIT") }}</ion-label>
+        </ion-segment-button>
+      </ion-segment>
     </ion-header>
 
     <ion-content>
-      <main>
-        <form @submit.prevent="handleSaveCount">
-          <!-- Location Card -->
-          <ion-card>
-            <ion-list lines="none">
-              <ion-item-divider>
-                <ion-label>{{ translate("Location") }}</ion-label>
-                <ion-label slot="end" class="expected-value" :color="(isLocationValid && scannedLocation) ? 'success' : ''">{{ currentLocationSeqId || translate("Scan Location") }}</ion-label>
-              </ion-item-divider>
-              <ion-item>
-                <ion-input
-                  ref="locationInput"
-                  v-model="scannedLocation"
-                  :label="translate('Location')"
-                  label-placement="floating"
-                  :placeholder="translate('Scan Location QR')"
-                  :error-text="translate('Incorrect location scanned')"
-                  :class="{ 'ion-invalid': !isLocationValid, 'ion-touched': isLocationTouched }"
-                  @ion-blur="isLocationTouched = true"
-                  @keyup.enter="focusNext('product')"
-                ></ion-input>
-              </ion-item>
-            </ion-list>
-          </ion-card>
-
-          <!-- Product/LPN Card -->
-          <ion-card>
-            <ion-list lines="none">
-              <ion-item-divider>
-                <ion-label>{{ isLpnControlled ? translate("LPN") : translate("Product") }}</ion-label>
-                <ion-label slot="end" class="expected-value" :color="(isProductValid && scannedIdentifier) ? 'success' : ''">{{ expectedProductIdentifier }}</ion-label>
-              </ion-item-divider>
-              <ion-item>
-                <ion-input
-                  ref="productInput"
-                  v-model="scannedIdentifier"
-                  :label="isLpnControlled ? translate('LPN') : translate('Product')"
-                  label-placement="floating"
-                  :placeholder="isLpnControlled ? translate('Scan LPN') : translate('Scan barcode')"
-                  :error-text="translate('Incorrect item scanned')"
-                  :class="{ 'ion-invalid': !isProductValid, 'ion-touched': isProductTouched }"
-                  @ion-blur="isProductTouched = true"
-                  @keyup.enter="focusNext('quantity')"
-                ></ion-input>
-              </ion-item>
-            </ion-list>
-          </ion-card>
-
-          <!-- Quantity Card -->
-          <ion-card>
-            <ion-list lines="none">
-              <ion-item-divider>
-                <ion-label>{{ translate("Quantity") }}</ion-label>
-                <ion-label slot="end" class="expected-value">{{ expectedQoh }} {{ translate("QoH") }}</ion-label>
-              </ion-item-divider>
-              <ion-item>
-                <ion-input
-                  ref="quantityInput"
-                  v-model.number="scannedQuantity"
-                  type="number"
-                  inputmode="numeric"
-                  :label="translate('Quantity')"
-                  label-placement="floating"
-                  :placeholder="translate('Input physical quantity')"
-                  @keyup.enter="handleSaveCount"
-                ></ion-input>
-              </ion-item>
-            </ion-list>
-          </ion-card>
-
-          <ion-button expand="block" class="ion-margin-top" type="submit" :disabled="!isFormValid">
-            {{ translate("SAVE COUNT") }}
-          </ion-button>
-        </form>
-
-        <!-- Recent Scans (Minimal) -->
-        <ion-list v-if="events.length > 0" class="ion-margin-top">
-          <ion-list-header>
-            <ion-label>{{ translate("Recent Scans") }}</ion-label>
-          </ion-list-header>
-          <ion-item v-for="event in events.slice(0, 5)" :key="event.createdAt">
-            <ion-label>
-              <h2>{{ event.product?.internalName || event.scannedValue }}</h2>
-              <p>{{ event.locationSeqId }}</p>
-            </ion-label>
-            <ion-badge slot="end" color="medium">{{ event.quantity }}</ion-badge>
+      <ion-segment-view>
+        <ion-segment-content v-show="activeSegment === 'scan'" id="scan">
+          <ion-item>
+            <ion-label><h1>{{ currentLocationSeqId }}</h1></ion-label>
           </ion-item>
-        </ion-list>
-      </main>
+          <ion-item>
+            <ion-input :disabled="scanProductIdentifier" label="Lot Id" v-model="scannedLot" placeholder="scan lot"></ion-input>
+          </ion-item>
+          <ion-item>
+            <div class="select-left">
+              <ion-checkbox slot="start" :checked="scanProductIdentifier" @ionChange="scanProductIdentifier = !scanProductIdentifier"></ion-checkbox>
+              <span>
+                {{ translate("No lot, scan primary product identifier", { primaryIdentifier: barcodeIdentifierDescription }) }}
+              </span>
+            </div>
+          </ion-item>
+          <ion-item>
+            <ion-input :disabled="!scanProductIdentifier" :label="barcodeIdentifierDescription" v-model="scannedProdIndentifier" placeholder="scan product"></ion-input>
+          </ion-item>
+          <ion-item size="small" class="scan-input">
+            <ion-input label="Quantity" type="number" min="1" placeholder="Enter quantity" v-model.number="scannedQuantity"></ion-input>
+          </ion-item>
+
+          <ion-button expand="block" class="scan-button ion-margin" @click="saveEvent">
+            <ion-icon slot="start" :icon="barcodeOutline" />
+            {{ translate("Save") }}
+          </ion-button>
+
+          <DynamicScroller :items="events" key-field="createdAt" class="virtual-list" :min-item-size="72" :buffer="60">
+            <template #default="{ item, index, active }">
+              <DynamicScrollerItem :item="item" :index="index" :active="active">
+                <ion-item>
+                  <div slot="start" class="img-preview">
+                    <ion-thumbnail @click="openImagePreview(item.product?.mainImageUrl)">
+                      <Image :src="item.product?.mainImageUrl || defaultImage" :key="item.product?.mainImageUrl"/>
+                    </ion-thumbnail>
+                      <ion-badge class="qty-badge" color="medium">
+                        {{ item.quantity }}
+                      </ion-badge>
+                  </div>
+                  <ion-label v-if="item.scannedLotId">
+                    <h2 v-if="item.aggApplied !== 1">{{ translate("Matching...") }}</h2>
+                    <h2 v-else-if="item.productId">{{ useProductMaster().primaryId(item.product) || item.product?.internalName }}</h2>
+                    <p v-else><ion-note color="warning">{{ translate("No Product Found") }}</ion-note></p>
+                    <p v-if="item.aggApplied === 1 && item.lotId">{{ item.scannedLotId }}</p>
+                    <p v-if="item.aggApplied === 1 && !item.lotId"><ion-note color="warning">{{ translate("Lot") }} {{ item.scannedLotId }} {{ translate("Not Found") }}</ion-note></p>
+                    <p>{{ translate("Lot") }}</p>
+                  </ion-label>
+                  <ion-label v-else>
+                    <h2 v-if="item.aggApplied !== 1">{{ translate("Matching...") }}</h2>
+                    <h2 v-else-if="item.productId">{{ useProductMaster().primaryId(item.product) || item.product?.internalName }}</h2>
+                    <ion-note v-else color="warning">{{ translate("No Product Found") }}</ion-note>
+                    <p>{{ item.scannedValue }}</p>
+                    <p class="clickable-time">{{ timeAgo(item.createdAt) }}</p>
+                  </ion-label>
+                  <ion-badge slot="end" v-if="item.aggApplied === 0" color="primary">
+                    {{ translate('unaggregated') }}
+                  </ion-badge>
+                </ion-item>
+              </DynamicScrollerItem>
+            </template>
+          </DynamicScroller>
+        </ion-segment-content>
+
+        <ion-segment-content v-show="activeSegment === 'review'" id="review">
+          <ion-item lines="none">
+            <ion-label><h1>{{ currentLocationSeqId }}</h1></ion-label>
+          </ion-item>
+
+          <ion-card>
+            <ion-card-header>
+              <p class="overline">{{ translate("UNITS COUNTED") }}</p>
+              <ion-card-title>{{ stats.totalUnits }}</ion-card-title>
+            </ion-card-header>
+            <ion-item>
+              <ion-label>{{ translate("Unprocessed counts") }}</ion-label>
+              <p slot="end">{{events.filter((event: any) => event.aggApplied === 0).length}}</p>
+            </ion-item>
+          </ion-card>
+          <ion-item lines="none">
+            <p class="overline">{{ translate("Uncounted Products") }}</p>
+            <ion-note slot="end">{{ uncountedItems.length }}</ion-note>
+          </ion-item>
+          <DynamicScroller :items="uncountedItems" key-field="uuid" :buffer="60" class="virtual-list" :min-item-size="64" :emit-update="true">
+            <template v-slot="{ item, index, active }">
+              <DynamicScrollerItem :item="item" :index="index" :active="active">
+                <ion-item>
+                  <ion-thumbnail slot="start">
+                    <Image :src="item.product?.mainImageUrl || defaultImage" :key="item.product?.mainImageUrl"/>
+                  </ion-thumbnail>
+                  <ion-label>
+                    {{ useProductMaster().primaryId(item.product) }}
+                    <p>{{ useProductMaster().secondaryId(item.product) }}</p>
+                  </ion-label>
+                  <ion-button fill="outline">{{ translate("Add Count") }}</ion-button>
+                </ion-item>
+              </DynamicScrollerItem>
+            </template>
+          </DynamicScroller>
+          <!-- <ion-list>
+            <ion-list-header>
+              <ion-label>
+                <p class="ion-text-capitalize">{{ translate("3 unmatched items") }}</p>
+              </ion-label>
+            </ion-list-header>
+
+            <ion-card v-for="n in 1" :key="n">
+              <ion-card-header>
+                <div class="unmatched-item-header">
+                  <ion-label>
+                    10022001922
+                    <p>10 scans ago</p>
+                    <p>3 minutes ago</p>
+                  </ion-label>
+                  <ion-button fill="outline">
+                    <ion-icon slot="start" :icon="searchOutline" />
+                    {{ translate("MATCH") }}
+                  </ion-button>
+                </div>
+              </ion-card-header>
+              <ion-card-content>
+                <ion-list class="timeline">
+                  <ion-item lines="none">
+                    <ion-thumbnail slot="start">
+                      <ion-icon :icon="imageOutline" size="large" />
+                    </ion-thumbnail>
+                    <ion-label>
+                      <p class="overline">3 ITEMS AGO</p>
+                      primaryid
+                      <p>Secondaryid</p>
+                      <p>scanned value</p>
+                    </ion-label>
+                    <div slot="end" class="ion-text-end">
+                      <p class="overline">last match</p>
+                      <ion-icon :icon="chevronUpCircleOutline" color="medium" />
+                    </div>
+                  </ion-item>
+                  <ion-item lines="none">
+                    <ion-thumbnail slot="start">
+                      <ion-icon :icon="imageOutline" size="large" />
+                    </ion-thumbnail>
+                    <ion-label>
+                      <p class="overline">2 ITEMS LATER</p>
+                      primaryid
+                    </ion-label>
+                    <div slot="end" class="ion-text-end">
+                      <p class="overline">next match</p>
+                      <ion-icon :icon="chevronDownCircleOutline" color="medium" />
+                    </div>
+                  </ion-item>
+                </ion-list>
+              </ion-card-content>
+            </ion-card>
+          </ion-list> -->
+        </ion-segment-content>
+      </ion-segment-view>
     </ion-content>
+    <ion-footer v-if="activeSegment === 'scan'">
+      <ion-toolbar>
+        <ion-button expand="block" fill="outline" class="ion-margin">
+          {{ translate("SCAN NEXT LOCATION") }}
+        </ion-button>
+      </ion-toolbar>
+    </ion-footer>
+    <ion-footer v-else>
+      <ion-toolbar>
+        <div class="footer-actions ion-margin">
+          <ion-button expand="block" fill="outline" color="warning" @click="showDiscardAlert = true" :disabled="sessionLocked">
+            {{ translate("VOID SESSION") }}
+          </ion-button>
+          <ion-button v-if="isSessionInProgress" expand="block" fill="outline" color="success" @click="showSubmitAlert = true" :disabled="sessionLocked">
+            {{ translate("SUBMIT SESSION") }}
+          </ion-button>
+        </div>
+      </ion-toolbar>
+    </ion-footer>
+    <ion-alert :is-open="showSubmitAlert" :header="translate('Complete session')" :message="translate('You’re about to complete this session in the cycle count and won’t be able to edit it again. After all sessions are completed, submit the cycle count for approval from the review cycle count page.')"
+        :buttons="[
+          { text: 'Cancel', role: 'cancel', handler: () => showSubmitAlert = false },
+          { text: 'Submit', role: 'confirm', handler: confirmSubmit }
+        ]"
+        @didDismiss="showSubmitAlert = false"/>
+
+      <ion-alert :is-open="showDiscardAlert" :header="translate('Discard session')" :message="translate('This session will be discarded and it won\'t be included for review when analyzing variances.')"
+        :buttons="[
+          { text: translate('Cancel'), role: 'cancel', handler: () => showDiscardAlert = false },
+          { text: translate('Discard'), role: 'confirm', handler: confirmDiscard }
+        ]"
+        @didDismiss="showDiscardAlert = false"/>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-/* global defineProps */
-import {
-  IonBackButton, IonBadge, IonButton, IonButtons, IonCard, IonContent, IonHeader,
-  IonInput, IonItem, IonItemDivider, IonLabel, IonList, IonListHeader, IonPage,
-  IonTitle, IonToolbar, onIonViewDidEnter, onIonViewDidLeave
+import { 
+  IonAccordion,
+  IonAccordionGroup,
+  IonAlert,
+  IonBackButton, 
+  IonBadge,
+  IonButton,
+  IonCardTitle,
+  IonCard,
+  IonCardContent,
+  IonCheckbox,
+  IonCardHeader,
+  IonContent,
+  IonFooter, 
+  IonHeader, 
+  IonIcon, 
+  IonInput,
+  IonItem, 
+  IonLabel, 
+  IonList, 
+  IonListHeader,
+  IonNote, 
+  IonPage,
+  IonSegment, 
+  IonSegmentButton, 
+  IonSegmentContent,
+  IonSegmentView,
+  IonThumbnail, 
+  IonTitle, 
+  IonToolbar,
+  onIonViewDidEnter,
+  onIonViewDidLeave
 } from '@ionic/vue';
-import { computed, ref, toRaw, watch, nextTick } from 'vue';
+import { barcodeOutline, chevronUpCircleOutline, chevronDownCircleOutline, imageOutline, searchOutline } from 'ionicons/icons';
+/* global defineProps */
+import { computed, ref, toRaw, watchEffect } from 'vue';
 import { translate } from '@/i18n';
-import { useInventoryCountImport } from '@/composables/useInventoryCountImport';
-import { useInventoryCountRun } from '@/composables/useInventoryCountRun';
-import { useProductMaster } from '@/composables/useProductMaster';
 import { useProductStore } from '@/stores/productStore';
-import { useAuthStore, hasError } from '@/stores/authStore';
+import { hasError, useAuthStore } from '@/stores/authStore';
 import { useUserProfile } from '@/stores/userProfileStore';
+import { useInventoryCountImport } from '@/composables/useInventoryCountImport';
 import { loader, showToast } from '@/services/uiUtils';
+import { DateTime } from 'luxon';
 import { from, Subscription } from 'rxjs';
+import { useProductMaster } from '@/composables/useProductMaster';
+import { useInventoryCountRun } from '@/composables/useInventoryCountRun';
+import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
+import defaultImage from "@/assets/images/defaultImage.png";
+import Image from '@/components/Image.vue';
+import { wrap, type Remote } from 'comlink'
+import { LockHeartbeatWorker } from '@/workers/lockHeartbeatWorker';
 import router from '@/router';
 
 const props = defineProps<{
@@ -128,266 +268,599 @@ const props = defineProps<{
   inventoryCountImportId: string;
 }>();
 
-// Form Data
-const scannedLocation = ref('');
-const scannedIdentifier = ref('');
-const scannedQuantity = ref<number | undefined>(undefined);
-
-// Refs for Focus Management
-const locationInput = ref<any>(null);
-const productInput = ref<any>(null);
-const quantityInput = ref<any>(null);
-
-// Session & State
 const currentLocationSeqId = ref('');
-const events = ref<any[]>([]);
-const uncountedItems = ref<any[]>([]);
-const subscriptions: Subscription[] = [];
+
+const activeSegment = ref('scan');
+const scannedProdIndentifier = ref('');
+const scannedLot = ref('');
+const scannedQuantity = ref(0);
 let aggregationWorker: Worker | null = null;
 
-// Computed Properties for "Expected" values
-const currentTargetItem = computed(() => uncountedItems.value[0] || null);
+const events = ref<any[]>([]);
+const subscriptions: Subscription[] = [];
+const inventoryCountImport = ref<any>(null);
+const totalItems = ref(0);
+const uncountedItems = ref<any[]>([]);
+const isLoadingItems = ref(true);
+const loadedItems = ref(0);
 
-const expectedProductIdentifier = computed(() => {
-  if (!currentTargetItem.value) return translate("N/A");
-  const name = currentTargetItem.value.product?.internalName || currentTargetItem.value.productId;
-  const id = scannableIdentifier.value;
-  return id ? `${name} (${id})` : name;
-});
+const workEffort = ref<any>(null);
 
-const scannableIdentifier = computed(() => {
-  if (!currentTargetItem.value) return '';
-  const idValue = isLpnControlled.value ? currentTargetItem.value.lotIdentifier : currentTargetItem.value.productIdentifier;
-  if (idValue) return idValue;
-  
-  // Fallback to internal ID if identifier is missing
-  return isLpnControlled.value ? currentTargetItem.value.lotId : currentTargetItem.value.productId;
-});
+const isImageModalOpen = ref(false)
+const largeImage = ref("")
 
-const isLpnControlled = computed(() => {
-  return currentTargetItem.value?.lotId ? true : false;
-});
+const currentLock = ref<any>(null);
+const sessionLocked = ref(false);
 
-const expectedQoh = computed(() => {
-  if (!currentTargetItem.value) return 0;
-  return currentTargetItem.value.inventory?.quantityOnHandTotal || 0;
-});
+const totalUnitsCount = ref(0);
+const unmatchedItems = ref<any[]>([]);
+const stats = ref({ totalUnits: 0, unmatched: 0 });
 
-// Validation States
-const isLocationTouched = ref(false);
-const isProductTouched = ref(false);
+let lockWorker: Remote<LockHeartbeatWorker> | null = null;
+let lockLeaseSeconds = 300;
+let lockGracePeriod = 300;
+const isNewLockAcquired = ref(false);
+const getGoodIdentificationOptions = computed(() => useProductStore().getGoodIdentificationOptions);
+const barcodeIdentifierPref = computed(() => useProductStore().getBarcodeIdentificationPref);
+const barcodeIdentifierDescription = computed(() => getGoodIdentificationOptions.value?.find((opt: any) => opt.goodIdentificationTypeId === barcodeIdentifierPref.value)?.description);
+const scanProductIdentifier = ref(false);
 
-const isLocationValid = computed(() => {
-  if (!scannedLocation.value) return true;
-  return scannedLocation.value.trim().toLowerCase() === currentLocationSeqId.value?.trim().toLowerCase();
-});
+const isSessionInProgress = computed(() => inventoryCountImport.value?.statusId === 'SESSION_ASSIGNED');
 
-const isProductValid = computed(() => {
-  if (!scannedIdentifier.value) return true;
-  const input = scannedIdentifier.value.trim().toLowerCase();
-  
-  // Check against the scannable identifier (which now has fallback)
-  if (input === scannableIdentifier.value?.trim().toLowerCase()) return true;
-  
-  // Extra safety: check against names or other identifiers if needed, 
-  // but SKU/ID fallback in scannableIdentifier should cover most cases.
-  return false;
-});
+const showSubmitAlert = ref(false)
+const showDiscardAlert = ref(false)
 
-const isQuantityValid = computed(() => scannedQuantity.value !== undefined && scannedQuantity.value > 0);
-
-const isFormValid = computed(() => {
-  const loc = scannedLocation.value.trim().toLowerCase();
-  const expectedLoc = currentLocationSeqId.value?.trim().toLowerCase();
-  const prod = scannedIdentifier.value.trim().toLowerCase();
-  const expectedProd = scannableIdentifier.value?.trim().toLowerCase();
-
-  return loc === expectedLoc && prod === expectedProd && isQuantityValid.value;
-});
+watchEffect(() => {
+  stats.value = {
+    totalUnits: totalUnitsCount.value,
+    unmatched: unmatchedItems.value.length
+  }
+})
 
 onIonViewDidEnter(async () => {
-  await loader.present(translate("Loading Session..."));
-  try {
-    // Get Current Location
-    const locSeqId = await useInventoryCountImport().getLastLocationSeqId(props.inventoryCountImportId);
-    currentLocationSeqId.value = locSeqId;
+  await loader.present("Loading Session...");
 
+  try {
+    await getWorkEffortDetails();
     subscriptions.push(
       from(useInventoryCountImport().getCurrentLocationSeqId(props.inventoryCountImportId)).subscribe((locSeqId: any) => {
         currentLocationSeqId.value = locSeqId;
       })
     );
-
     await startSession();
-
-    // Scan Events Subscription
+    if (!['SESSION_SUBMITTED', 'SESSION_VOIDED'].includes(inventoryCountImport.value?.statusId)) {
+      await handleSessionLock();
+    }
     subscriptions.push(
-      from(useInventoryCountImport().getScanEvents(props.inventoryCountImportId, currentLocationSeqId.value)).subscribe((scans: any) => {
-        events.value = scans;
+      from(useInventoryCountImport().getScanEvents(props.inventoryCountImportId, currentLocationSeqId.value)).subscribe((scans: any) => { events.value = scans; })
+    );
+    subscriptions.push(
+      from(useInventoryCountImport().getTotalCountedUnits(props.inventoryCountImportId, currentLocationSeqId.value)).subscribe((total: any) => {
+        totalUnitsCount.value = total;
       })
     );
-
-    // Uncounted Items Subscription (to drive "Next Item")
     subscriptions.push(
-      from(useInventoryCountImport().getUncountedItems(props.inventoryCountImportId, currentLocationSeqId.value)).subscribe((items: any) => {
-        uncountedItems.value = items;
-      })
+      from(useInventoryCountImport().getUncountedItems(props.inventoryCountImportId, currentLocationSeqId.value)).subscribe((items: any) => (uncountedItems.value = items))
+    )
+    subscriptions.push(
+      from(useInventoryCountImport().getUnmatchedItems(props.inventoryCountImportId, currentLocationSeqId.value)).subscribe((items: any) => (unmatchedItems.value = items))
     );
 
-    setupAggregationWorker();
+    aggregationWorker = new Worker(
+        new URL('@/workers/backgroundAggregation.ts', import.meta.url), { type: 'module' }
+      )
 
-    // Set Initial Focus
-    await focusNext('location');
+      aggregationWorker.onmessage = (event) => {
+        const { type, count } = event.data
+        if (type === 'aggregationComplete') {
+          console.info(`Aggregated ${count} products from scans`)
+        }
+      }
+      aggregationWorker.onerror = (err) => {
+        console.error('[Worker Error]', err.message || err);
+      };
+      aggregationWorker.onmessageerror = (err) => {
+        console.error('[Worker Message Error]', err);
+      };
+      // Run every 10 seconds
+      // const productIdentifications = process.env.VUE_APP_PRDT_IDENT ? JSON.parse(JSON.stringify(process.env.VUE_APP_PRDT_IDENT)) : []
+      const barcodeIdentification = useProductStore().getBarcodeIdentificationPref;
+
+      aggregationWorker.postMessage({
+        type: 'schedule',
+        payload: {
+          workEffortId: props.workEffortId,
+          inventoryCountImportId: props.inventoryCountImportId,
+          intervalMs: 8000,
+          context: {
+            omsUrl: useAuthStore().getBaseUrl,
+            omsInstance: useAuthStore().getOMS,
+            userLoginId: useUserProfile().getUserProfile?.userLoginId,
+            maargUrl: useAuthStore().getBaseUrl,
+            token: useAuthStore().token.value,
+            barcodeIdentification: barcodeIdentification,
+            inventoryCountTypeId: props.inventoryCountTypeId,
+            facilityId: useProductStore().getCurrentFacility.facilityId
+          }
+        }
+      })
   } catch (err) {
     console.error(err);
-    showToast(translate("Failed to load session"));
+    showToast("Failed to load session");
   }
   loader.dismiss();
 });
 
 onIonViewDidLeave(async () => {
-  subscriptions.forEach(sub => sub.unsubscribe());
+  subscriptions.forEach(subscription => subscription.unsubscribe());
   subscriptions.length = 0;
 
-  if (aggregationWorker) {
-    await finalizeAggregationAndSync();
-    aggregationWorker.terminate();
-    aggregationWorker = null;
+  await finalizeAggregationAndSync();
+  await unscheduleWorker();
+  if (lockWorker) {
+    await lockWorker.stopHeartbeat()
+    lockWorker = null
   }
 });
 
-// Focus Management Logic
-async function focusNext(field: 'location' | 'product' | 'quantity') {
-  await nextTick();
-  let target = null;
-  if (field === 'location') target = locationInput.value;
-  else if (field === 'product') target = productInput.value;
-  else if (field === 'quantity') target = quantityInput.value;
+async function handleSessionLock() {
+  try {
+    const userId = useUserProfile().getUserProfile?.userLoginId;
+    const inventoryCountImportId = props.inventoryCountImportId;
+    const currentDeviceId = useUserProfile().getDeviceId;
 
-  if (target) {
-    const el = target.$el || target;
-    if (el.setFocus) await el.setFocus();
-    else if (el.focus) el.focus();
+    // Fetch existing lock
+    const existingLockResp = await useInventoryCountImport().getSessionLock({
+      inventoryCountImportId,
+      deviceId: currentDeviceId,
+      userId,
+    });
+    const existingLock = existingLockResp?.data || null;
+    currentLock.value = existingLock;
+
+    // --- If existing lock found ---
+    if (existingLock && Object.keys(existingLock).length > 0) {
+      if (existingLock.userId !== userId || existingLock.deviceId !== currentDeviceId) {
+        // Different user → lock session
+        sessionLocked.value = true;
+        showToast('This session is locked by another user.');
+        console.warn('Session locked by another user:', existingLock);
+        return;
+      }
+
+      // Same user + same device → continue, schedule worker
+      sessionLocked.value = false;
+      showToast('Existing lock found. Resuming session.');
+
+      // Schedule heartbeat worker for existing lock
+      let worker: Worker | null = null;
+      if (!lockWorker) {
+        worker = new Worker(
+          new URL('@/workers/lockHeartbeatWorker.ts', import.meta.url),
+          { type: 'module' }
+        );
+        lockWorker = wrap<Remote<LockHeartbeatWorker>>(worker);
+      }
+
+      const payload = {
+        inventoryCountImportId,
+        lock: JSON.parse(JSON.stringify(toRaw(currentLock.value))),
+        leaseSeconds: lockLeaseSeconds,
+        gracePeriod: lockGracePeriod,
+        maargUrl: useAuthStore().getBaseUrl,
+        token: useAuthStore().token.value,
+        userId,
+        deviceId: currentDeviceId
+      };
+
+      await lockWorker.startHeartbeat(payload);
+
+      // Message listener
+      if (worker) {
+        worker.onmessage = async (event: any) => {
+          const { type, thruDate } = event.data;
+          if (type === 'heartbeatSuccess') {
+            currentLock.value.thruDate = thruDate;
+          } else if (type === 'lockForceReleased') {
+            showToast('Session lock was force-released by another user.');
+            console.warn('Session lock force-released12:', currentLock.value);
+            await releaseSessionLock();
+            if (lockWorker) await lockWorker.stopHeartbeat();
+            router.push('/tabs/count');
+          } else if (type === 'lockExpired') {
+            showToast('Session lock expired. Please reacquire the lock.');
+            await releaseSessionLock();
+            router.push('/tabs/count');
+          } else if (type === 'reacquireLock') {
+            showToast('Reacquiring lock...');
+            await handleSessionLock();
+          }
+        };
+      }
+
+      return;
+    }
+
+    // --- If no lock found, acquire a new one ---
+    const fromDate = DateTime.now().toMillis();
+    const newLockResp = await useInventoryCountImport().lockSession({
+      inventoryCountImportId,
+      userId,
+      deviceId: currentDeviceId,
+      fromDate,
+      thruDate: fromDate + (lockLeaseSeconds * 1000)
+    });
+
+    if (!hasError(newLockResp)) {
+      currentLock.value = newLockResp.data;
+      showToast('Session lock acquired.');
+      inventoryCountImport.value.statusId = 'SESSION_ASSIGNED';
+      let worker: Worker | null = null;
+      if (!lockWorker) {
+        worker = new Worker(
+          new URL('@/workers/lockHeartbeatWorker.ts', import.meta.url),
+          { type: 'module' }
+        );
+        lockWorker = wrap<Remote<LockHeartbeatWorker>>(worker);
+      }
+
+      const payload = {
+        inventoryCountImportId,
+        lock: JSON.parse(JSON.stringify(toRaw(currentLock.value))),
+        leaseSeconds: lockLeaseSeconds,
+        gracePeriod: lockGracePeriod,
+        maargUrl: useAuthStore().getBaseUrl,
+        token: useAuthStore().token.value,
+        userId,
+        deviceId: currentDeviceId
+      };
+
+      await lockWorker.startHeartbeat(payload);
+
+      // Listen for messages
+      if (worker) {
+        worker.onmessage = async (event: any) => {
+          const { type, thruDate } = event.data;
+          if (type === 'heartbeatSuccess') {
+            currentLock.value.thruDate = thruDate;
+          } else if (type === 'lockForceReleased') {
+            showToast('Session lock was force-released by another user.');
+            console.warn('Session lock force-released34:', currentLock.value);
+            await releaseSessionLock();
+            if (lockWorker) await lockWorker.stopHeartbeat();
+            router.push('/tabs/count');
+          } else if (type === 'lockExpired') {
+            showToast('Session lock expired. Please reacquire the lock.');
+            await releaseSessionLock();
+            router.push('/tabs/count');
+          } else if (type === 'reacquireLock') {
+            showToast('Reacquiring lock...');
+            await handleSessionLock();
+          }
+        };
+      }
+      isNewLockAcquired.value = true;
+    } else {
+      sessionLocked.value = true;
+      showToast('Failed to acquire lock.');
+    }
+  } catch (err) {
+    console.error('Error handling session lock:', err);
+    sessionLocked.value = true;
+    showToast('Error while acquiring session lock.');
   }
 }
 
-async function handleSaveCount() {
-  if (!scannedIdentifier.value.trim()) {
-    showToast(translate("Please scan a product or LPN"));
-    await focusNext('product');
-    return;
-  }
-  if (scannedQuantity.value === undefined || scannedQuantity.value <= 0) {
-    showToast(translate("Please enter a valid quantity"));
-    await focusNext('quantity');
-    return;
-  }
-
-  const params: any = {
-    inventoryCountImportId: props.inventoryCountImportId,
-    productId: currentTargetItem.value?.productId,
-    lotId: currentTargetItem.value?.lotId,
-    quantity: scannedQuantity.value,
-    locationSeqId: scannedLocation.value || currentLocationSeqId.value
-  };
-
-  if (isLpnControlled.value) {
-    params.scannedLotId = scannedIdentifier.value.trim();
-  } else {
-    params.productIdentifier = scannedIdentifier.value.trim();
-  }
+async function releaseSessionLock() {
+  if (!currentLock.value) return;
 
   try {
-    await useInventoryCountImport().recordScanAndAggregate(params);
-    showToast(translate("Count saved"));
-    
-    // Reset inputs for next item
-    scannedIdentifier.value = '';
-    scannedQuantity.value = undefined;
-    isProductTouched.value = false;
-    
-    // Auto-focus back to product for the next scan
-    await focusNext('product');
+    const payload = {
+      inventoryCountImportId: props.inventoryCountImportId,
+      userId: useUserProfile().getUserProfile?.userLoginId,
+      thruDate: DateTime.now().toMillis(),
+      fromDate: currentLock.value.fromDate
+    };
+
+    const resp = await useInventoryCountImport().releaseSession(payload);
+    if (resp?.status === 200) {
+      showToast('Session lock released.');
+      currentLock.value = null;
+    } else {
+      showToast('Failed to release session lock.');
+    }
   } catch (err) {
-    console.error(err);
-    showToast(translate("Failed to record scan"));
+    console.error('Error releasing session lock:', err);
+    showToast('Error while releasing session lock.');
+  }
+}
+
+async function getWorkEffortDetails() {
+  try {
+    const resp = await useInventoryCountRun().getWorkEffort({ workEffortId: props.workEffortId });
+
+    if (resp && !hasError(resp)) {
+      workEffort.value = resp.data;
+    } else {
+      throw resp;
+    }
+  } catch (error) {
+    console.error("Error getting work effort details", error);
+    showToast("Falied to fetch work effort details");
   }
 }
 
 async function startSession() {
-  // Load items if needed
-  const sessionItemsCount = await useInventoryCountImport().getInventoryCountImportItemsCount(props.inventoryCountImportId, currentLocationSeqId.value);
-  if (!sessionItemsCount) {
-    const itemsResp = await useInventoryCountImport().getSessionItemsByImportId(props.inventoryCountImportId, { locationSeqId: currentLocationSeqId.value });
-    if (itemsResp?.data?.items) {
-      await useInventoryCountImport().storeInventoryCountItems(itemsResp.data.items);
+  try {
+    const resp = await useInventoryCountImport().getInventoryCountImportSession({ inventoryCountImportId: props.inventoryCountImportId });
+    if (resp?.status === 200 && resp.data) {
+      inventoryCountImport.value = resp.data;
+    } else {
+      console.error("Session not Found");
+      throw resp;
     }
+
+    await getTotalItemCount();
+
+    // Load InventoryCountImportItem records into IndexedDB
+    const sessionItemsCount = await useInventoryCountImport().getInventoryCountImportItemsCount(props.inventoryCountImportId, currentLocationSeqId.value);
+
+    if (!sessionItemsCount || totalItems.value !== sessionItemsCount) {
+      console.log("[Session] No local records found, fetching from backend...");
+      await loadInventoryItemsWithProgress();
+    } else {
+      isLoadingItems.value = false
+    }
+
+    // Prefetch product details for all related productIds
+    const productIds = await useInventoryCountImport().getSessionProductIds(props.inventoryCountImportId, currentLocationSeqId.value);
+    if (productIds.length) {
+      // fire asynchronously, don’t block UI
+      useProductMaster().prefetch(productIds)
+        .then(() => console.info(`Prefetch ${productIds.length} products hydrated`))
+        .catch(err => console.warn('Prefetch Failed:', err))
+    }    showToast('Session ready to start counting');
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to initialize session');
   }
 
-  // Prefetch products
-  const productIds = await useInventoryCountImport().getSessionProductIds(props.inventoryCountImportId, currentLocationSeqId.value);
-  if (productIds.length) {
-    useProductMaster().prefetch(productIds);
+}
+
+async function getTotalItemCount() {
+  try {
+    const resp = await useInventoryCountImport().getInventoryCountImportItemCount(props.inventoryCountImportId, {
+      locationSeqId: currentLocationSeqId.value
+    });
+    if (resp?.status === 200 && resp.data?.count !== undefined) {
+      totalItems.value = resp.data.count
+    } else {
+      totalItems.value = 0
+    }
+  } catch (err) {
+    console.error('Failed to fetch total item count', err)
+    totalItems.value = 0
   }
 }
 
-function setupAggregationWorker() {
-  aggregationWorker = new Worker(new URL('@/workers/backgroundAggregation.ts', import.meta.url), { type: 'module' });
-  const barcodeIdentification = useProductStore().getBarcodeIdentificationPref;
-  aggregationWorker.postMessage({
-    type: 'schedule',
-    payload: {
-      workEffortId: props.workEffortId,
-      inventoryCountImportId: props.inventoryCountImportId,
-      intervalMs: 8000,
-      context: {
-        omsUrl: useAuthStore().getBaseUrl,
-        omsInstance: useAuthStore().getOMS,
-        userLoginId: useUserProfile().getUserProfile?.userLoginId,
-        token: useAuthStore().token.value,
-        barcodeIdentification,
-        inventoryCountTypeId: props.inventoryCountTypeId,
-        facilityId: useProductStore().getCurrentFacility.facilityId
+async function loadInventoryItemsWithProgress() {
+  loadedItems.value = 0
+  isLoadingItems.value = true
+  const pageSize = 500
+  let pageIndex = 0
+  let totalFetched = 0
+
+  try {
+    let hasMore = true
+    while (hasMore) {
+      const resp = await useInventoryCountImport().getSessionItemsByImportId(
+        props.inventoryCountImportId,
+        {
+          pageIndex,
+          pageSize,
+          locationSeqId: currentLocationSeqId.value
+        }
+      );
+
+      if (resp?.status !== 200 || !resp.data?.items?.length) break
+
+      const items = resp.data.items
+      totalFetched += items.length
+      loadedItems.value = totalFetched
+
+      // store in IndexedDB
+      await useInventoryCountImport().storeInventoryCountItems(items)
+
+      if (items.length < pageSize) {
+        hasMore = false
+        break
       }
+      pageIndex++
     }
-  });
+  } catch (err) {
+    console.error('Error loading items with progress', err)
+    showToast('Failed to load session items')
+  } finally {
+    isLoadingItems.value = false
+  }
+}
+
+function saveEvent() {
+  if (scannedProdIndentifier.value.trim() && scannedLot.value.trim()) {
+    showToast("Either Provide Lot or Product");
+  }
+
+  if (scannedQuantity.value <= 0) {
+    showToast("Quantity should be greater than zero");
+    return;
+  }
+
+  const params: any = { inventoryCountImportId: props.inventoryCountImportId, quantity: scannedQuantity.value, locationSeqId: currentLocationSeqId.value };
+  let value = '';
+
+  if (scannedLot.value.trim()) {
+    params.scannedLotId = scannedLot.value.trim();
+  } else {
+    params.productIdentifier = scannedProdIndentifier.value.trim();
+  }
+
+  try {
+    useInventoryCountImport().recordScan(params);
+    events.value.unshift({ scannedValue: value, quantity: 1, createdAt: DateTime.now().toMillis() });
+  } catch (err) {
+    console.error(err);
+    showToast('Failed to record scan');
+  } finally {
+    scannedProdIndentifier.value = '';
+    scannedLot.value = '';
+    scannedQuantity.value = 0;
+  }
+}
+
+function timeAgo (time: number) {
+  return DateTime.fromMillis(time).toRelative();
+}
+
+function openImagePreview(src: string) {
+  if (!src) return
+  largeImage.value = src
+  isImageModalOpen.value = true
+}
+
+async function confirmSubmit() {
+  showSubmitAlert.value = false
+  try {
+    if (unmatchedItems.value.length > 0) {
+      showToast(translate("Unmatched products should be resolved before submission"))
+      return
+    }
+    await finalizeAggregationAndSync()
+    await useInventoryCountImport().updateSession({
+      inventoryCountImportId: props.inventoryCountImportId,
+      statusId: 'SESSION_SUBMITTED'
+    })
+    inventoryCountImport.value.statusId = 'SESSION_SUBMITTED'
+    await releaseSessionLock()
+    if (lockWorker) await lockWorker.stopHeartbeat()
+    showToast('Session submitted successfully')
+    router.replace(`/count-detail/${props.workEffortId}`)
+  } catch (err) {
+    console.error(err)
+    showToast('Failed to submit session')
+  }
+}
+
+async function confirmDiscard() {
+  showDiscardAlert.value = false
+  try {
+    await finalizeAggregationAndSync()
+    await useInventoryCountImport().updateSession({
+      inventoryCountImportId: props.inventoryCountImportId,
+      statusId: 'SESSION_VOIDED',
+    })
+    inventoryCountImport.value.statusId = 'SESSION_VOIDED'
+    await releaseSessionLock()
+    if (lockWorker) await lockWorker.stopHeartbeat()
+    showToast('Session discarded')
+    await router.replace(`/count-detail/${props.workEffortId}`)
+  } catch (err) {
+    console.error(err)
+    showToast('Failed to discard session')
+  }
 }
 
 async function finalizeAggregationAndSync() {
-  if (!aggregationWorker) return;
-  const barcodeIdentification = useProductStore().getBarcodeIdentificationPref;
-  aggregationWorker.postMessage({
-    type: 'aggregate',
-    payload: {
-      workEffortId: props.workEffortId,
-      inventoryCountImportId: props.inventoryCountImportId,
-      context: {
-        omsUrl: useAuthStore().getBaseUrl,
-        omsInstance: useAuthStore().getOMS,
-        userLoginId: useUserProfile().getUserProfile?.userLoginId,
-        token: useAuthStore().token.value,
-        barcodeIdentification,
-        inventoryCountTypeId: props.inventoryCountTypeId,
-        facilityId: useProductStore().getCurrentFacility.facilityId
+  try {
+    if (!aggregationWorker) return;
+
+    const barcodeIdentification = useProductStore().getBarcodeIdentificationPref;
+
+    const context = {
+      omsUrl: useAuthStore().getBaseUrl,
+      omsInstance: useAuthStore().getOMS,
+      userLoginId: useUserProfile().getUserProfile?.userLoginId,
+      token: useAuthStore().token.value,
+      barcodeIdentification,
+      inventoryCountTypeId: props.inventoryCountTypeId,
+      facilityId: useProductStore().getCurrentFacility.facilityId
+    };
+
+    aggregationWorker.postMessage({
+      type: 'aggregate',
+      payload: {
+        workEffortId: props.workEffortId,
+        inventoryCountImportId: props.inventoryCountImportId,
+        context
       }
+    });
+
+    return;
+  } catch (err) {
+    console.error('[Session] Error during final aggregation:', err);
+    return 0;
+  }
+}
+
+async function unscheduleWorker() {
+  try {
+    if (aggregationWorker) {
+      console.log('[Session] Terminating background aggregation worker...');
+      aggregationWorker.terminate();
+      aggregationWorker = null;
     }
-  });
+  } catch (err) {
+    console.error('[Session] Failed to terminate worker:', err);
+  }
 }
 </script>
 
 <style scoped>
-main {
-  max-width: 500px;
-  margin: 0 auto;
+.scan-input {
+  --inner-padding-top: var(--spacer-base);
+  --inner-padding-bottom: var(--spacer-base);
 }
 
-ion-item-divider {
-  --background: var(--ion-color-light);
-  border-bottom: 1px solid var(--ion-color-light);
+ion-item [slot="end"] ion-button {
+  display: block;
 }
 
-ion-card {
-  margin-bottom: 20px;
+.unmatched-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.footer-actions {
+  display: flex;
+  gap: var(--spacer-sm);
+}
+
+.footer-actions ion-button {
+  flex: 1;
+}
+
+.timeline {
+  --ion-safe-area-left: 0;
+  --ion-safe-area-right: 0;
+}
+
+.qty-badge {
+  border-radius: 100%;
+  top: -5px;
+  right: -1px;
+  position: absolute;
+  font-size: 10px;
+}
+
+.img-preview {
+  cursor: pointer;
+  position: relative;
+}
+
+.select-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 </style>
