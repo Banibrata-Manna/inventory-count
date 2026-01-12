@@ -232,147 +232,6 @@ async function resolveMissingProducts(inventoryCountImportId: string, context: a
 }
 
 // Aggregation Logic
-// async function aggregate(inventoryCountImportId: string, context: any) {
-//   if (isAggregating) return 0
-//   isAggregating = true
-
-//   try {
-//     const scans = await db.table('scanEvents')
-//       .where({ inventoryCountImportId })
-//       .and((scanEvent: any) => scanEvent.aggApplied === 0)
-//       .toArray()
-
-//     if (!scans.length) return 0
-
-//     const grouped: Record<string, Record<string, number>> = {}
-
-//     for (const scan of scans) {
-//       const key = scan.productId || scan.scannedValue?.trim() || scan.lotId?.trim()
-
-//       if (!key) continue
-
-//       const locationSeqId = scan.locationSeqId
-
-//       if (!grouped[key]) {
-//         grouped[key] = {}
-//       }
-
-//       grouped[key][locationSeqId] = (grouped[key][locationSeqId] || 0) + (scan.quantity || 1)
-//     }
-
-//     let processed = 0
-//     const now = Date.now()
-
-//     console.log('[Worker] Aggregating scans for', inventoryCountImportId, 'Total unique identifiers:', grouped);
-
-//     for (const scannedValue of Object.keys(grouped)) {
-//       for (const locationSeqId of Object.keys(grouped[scannedValue])) {
-//         let lotId = null
-//         const quantity = grouped[scannedValue][locationSeqId]
-//         let productId: string | null = null
-
-//         const identification = await db.table('productIdentification')
-//           .where('value')
-//           .equalsIgnoreCase(scannedValue)
-//           .and((item: any) => item.identKey === context.barcodeIdentification)
-//           .first()
-
-//         if (identification) {
-//           productId = identification.productId
-//         } else {
-//           const product = await db.table('products').get(scannedValue)
-//           if (product) {
-//             productId = product.productId
-//           } else {
-//             const lotAndProduct = await db.table('lotAndProduct')
-//               .where('lotId')
-//               .equalsIgnoreCase(scannedValue)
-//               .first()
-
-//             if (lotAndProduct) {
-//               productId = lotAndProduct.productId
-//             } else {
-//               const resp = await ensureLotAndProductStored(scannedValue, context);
-//               if (resp?.productId) {
-//                 productId = resp.productId;
-//                 lotId = resp.lotId;
-//               }
-//             }
-//           }
-//         }
-
-//         const existing = await db.table('inventoryCountRecords')
-//           .where('inventoryCountImportId')
-//           .equals(inventoryCountImportId)
-//           .and((item: any) =>
-//             item.locationSeqId === locationSeqId &&
-//             (
-//               (productId && item.productId === productId) ||
-//               item.productIdentifier === scannedValue ||
-//               item.lotId === scannedValue
-//             )
-//           )
-//           .first()
-
-//         if (existing) {
-//           await db.table('inventoryCountRecords').put({
-//             ...existing,
-//             quantity: (existing.quantity || 0) + quantity,
-//             lastScanAt: now,
-//             lastUpdatedAt: now,
-//             productId: existing.productId || productId,
-//             facilityId: context.facilityId,
-//             locationSeqId,
-//             isRequested: existing.isRequested ?? 'Y'
-//           })
-//         } else {
-//           await db.table('inventoryCountRecords').add({
-//             inventoryCountImportId,
-//             uuid: uuidv4(),
-//             productIdentifier: scannedValue,
-//             productId,
-//             lotId: lotId,
-//             quantity,
-//             facilityId: context.facilityId,
-//             locationSeqId,
-//             isRequested: context.inventoryCountTypeId === 'HARD_COUNT' ? 'Y' : 'N',
-//             createdAt: now,
-//             lastScanAt: now,
-//             lastUpdatedAt: now
-//           })
-//         }
-
-//         if (productId) {
-//           await db.table('scanEvents')
-//             .where({ inventoryCountImportId })
-//             .and((scanEvent: any) =>
-//               scanEvent.scannedValue === scannedValue &&
-//               scanEvent.locationSeqId === locationSeqId
-//             )
-//             .modify({
-//               productId,
-//               lastUpdatedAt: now
-//             })
-//         }
-
-//         processed++
-//       }
-//     }
-
-//     await db.table('scanEvents')
-//       .where('id')
-//       .anyOf(scans.map((s: any) => s.id))
-//       .modify({ aggApplied: 1 })
-
-//     return processed
-//   } catch (err) {
-//     console.error('Aggregation failed', err)
-//     return 0
-//   } finally {
-//     isAggregating = false
-//   }
-// }
-
 async function aggregate(inventoryCountImportId: string, context: any) {
   if (isAggregating) return 0
   isAggregating = true
@@ -444,43 +303,46 @@ async function aggregate(inventoryCountImportId: string, context: any) {
     const lotGrouped: Record<string, Record<string, number>> = {}
 
     for (const scan of scans) {
-      if (!scan.lotId || !scan.locationSeqId) continue
+      if (!scan.scannedLotId || !scan.locationSeqId) continue
 
-      lotGrouped[scan.lotId] ??= {}
-      lotGrouped[scan.lotId][scan.locationSeqId] =
-        (lotGrouped[scan.lotId][scan.locationSeqId] || 0) +
+      lotGrouped[scan.scannedLotId] ??= {}
+      lotGrouped[scan.scannedLotId][scan.locationSeqId] =
+        (lotGrouped[scan.scannedLotId][scan.locationSeqId] || 0) +
         (scan.quantity || 1)
     }
 
-    for (const lotId of Object.keys(lotGrouped)) {
-      const lotMapping = await ensureLotAndProductStored(lotId, context)
+    for (const lotIdentifier of Object.keys(lotGrouped)) {
+      const lotMapping = await ensureLotAndProductStored(lotIdentifier, context)
       const productId = lotMapping?.productId || null
+      const lotId = lotMapping?.lotId || null
 
-      for (const locationSeqId of Object.keys(lotGrouped[lotId])) {
-        const quantity = lotGrouped[lotId][locationSeqId]
+      for (const locationSeqId of Object.keys(lotGrouped[lotIdentifier])) {
+        const quantity = lotGrouped[lotIdentifier][locationSeqId]
 
         await upsertInventoryRecord(
           (item: any) =>
-            (productId && item.productId === productId) &&
+            ((lotId && item.lotId === lotId) || item.lotIdentifier === lotIdentifier) &&
             item.locationSeqId === locationSeqId,
           {
             productId,
+            lotId,
+            lotIdentifier,
             quantity,
             locationSeqId
           }
         )
 
-        console.log(`[Worker] Lot-based aggregation: lotId=${lotId}, productId=${productId}, locationSeqId=${locationSeqId}, quantity=${quantity}`)
+        console.log(`[Worker] Lot-based aggregation: lotId=${lotIdentifier}, productId=${productId}, locationSeqId=${locationSeqId}, quantity=${quantity}`)
 
         if (productId) {
           await db.table('scanEvents')
             .where({ inventoryCountImportId })
             .and(
               (s: any) =>
-                s.lotId === lotId &&
+                s.scannedLotId === lotIdentifier &&
                 s.locationSeqId === locationSeqId
             )
-            .modify({ productId, lastUpdatedAt: now })
+            .modify({ productId, lastUpdatedAt: now, lotId: lotMapping.lotId, lotIdentifier: lotIdentifier })
         }
       }
     }
@@ -492,7 +354,8 @@ async function aggregate(inventoryCountImportId: string, context: any) {
     const prodGrouped: Record<string, Record<string, number>> = {}
 
     for (const scan of scans) {
-      if (scan.lotId) continue
+      // Skip scans that were already processed in LOT pass
+      if (scan.scannedLotId) continue
       if (!scan.locationSeqId) continue
 
       const key = scan.productId || scan.scannedValue?.trim()
@@ -514,7 +377,7 @@ async function aggregate(inventoryCountImportId: string, context: any) {
           (item: any) =>
             item.locationSeqId === locationSeqId &&
             (
-              (productId && item.productId === productId) ||
+              ((!item.lotIdentifier || !item.lotId) && productId && item.productId === productId) ||
               item.productIdentifier === key
             ),
           {
@@ -557,13 +420,13 @@ async function aggregate(inventoryCountImportId: string, context: any) {
   }
 }
 
-async function ensureLotAndProductStored(lotId: string, context: any) {
-  if (!lotId) return null
+async function ensureLotAndProductStored(externalLotId: string, context: any) {
+  if (!externalLotId) return null
 
   try {
     const existing = await db.table('lotAndProduct')
-      .where('lotId')
-      .equalsIgnoreCase(lotId)
+      .where('externalLotId')
+      .equalsIgnoreCase(externalLotId)
       .first()
 
     if (existing?.productId) {
@@ -578,13 +441,14 @@ async function ensureLotAndProductStored(lotId: string, context: any) {
       },
       url: `service/getLot`,
       method: 'POST',
-      data: { lotId }
+      data: { externalLotId }
     })
 
     if (resp?.lotId && resp?.productId) {
       const record = {
         lotId: resp.lotId,
-        productId: resp.productId
+        productId: resp.productId,
+        externalLotId: externalLotId
       }
 
       await db.table('lotAndProduct').put(record)
@@ -593,7 +457,7 @@ async function ensureLotAndProductStored(lotId: string, context: any) {
 
     return null
   } catch (err) {
-    console.warn(`[Worker] Failed to resolve lot ${lotId}:`, err)
+    console.warn(`[Worker] Failed to resolve lot ${externalLotId}:`, err)
     return null
   }
 }
@@ -692,8 +556,10 @@ async function syncToServer(inventoryCountImportId: string, context: any) {
     const items = pending.map((item: any) => ({
       uuid: item.uuid,
       productId: item.productId,
+      lotId: item.lotId,
       locationSeqId: item.locationSeqId,
       productIdentifier: item.productIdentifier,
+      lotIdentifier: item.lotIdentifier,
       quantity: Number(item.quantity || 0),
       lastScanAt: item.lastScanAt,
       lastUpdatedAt: item.lastUpdatedAt || Date.now(),
