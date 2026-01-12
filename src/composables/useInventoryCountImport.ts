@@ -49,9 +49,11 @@ function currentMillis(): number {
       const normalized = items.map((item: any) => ({
         inventoryCountImportId: item.inventoryCountImportId,
         productId: item.productId || null,
+        lotId: item.lotId || null,
         uuid: item.uuid || uuidv4(),
         isRequested: item.isRequested || 'Y',
-        productIdentifier: item.productIdentifier || '',
+        productIdentifier: item.productIdentifier || null,
+        lotIdentifier: item.lotIdentifier || null,
         locationSeqId: item.locationSeqId || null,
         quantity: item.quantity || 0,
         status: 'active',
