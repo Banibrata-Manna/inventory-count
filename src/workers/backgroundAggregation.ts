@@ -634,26 +634,31 @@ async function resolveMissingSystemQOH(
 
   for (const record of records) {
     try {
+      const payload = {
+        productId: record.productId,
+        facilityId: record.facilityId,
+        locationSeqId: record.locationSeqId
+      } as any;
+
+      if (record.lotId) {
+        payload.lotId = record.lotId
+      }
       const inventory = await workerApi({
         baseURL: context.maargUrl,
         headers: {
           'Authorization': `Bearer ${context.token}`,
           'Content-Type': 'application/json'
         },
-        url: 'oms/dataDocumentView',
+        url: 'service/getInventoryAvailableByLocation',
         method: 'POST',
-        data: {
-        dataDocumentId: 'ProductFacilityAndInventoryItem',
-        pageSize: 1,
-        customParametersMap: { productId: record.productId, facilityId: record.facilityId }
-      }
+        data: payload
       })
 
       await db.table('inventoryCountRecords')
         .where('[inventoryCountImportId+uuid]')
         .equals([inventoryCountImportId, record.uuid])
         .modify({
-          systemQuantityOnHand: inventory?.entityValueList?.[0]?.quantityOnHandTotal || 0,
+          systemQuantityOnHand: inventory?.quantityOnHandTotal || 0,
           lastUpdatedAt: now
         })
 
@@ -690,7 +695,7 @@ self.onmessage = async (messageEvent: MessageEvent) => {
     await ensureDB(context);
     const count = await aggregate(inventoryCountImportId, context)
     await resolveMissingProducts(inventoryCountImportId, context)
-    // if(count > 0) await resolveMissingSystemQOH(inventoryCountImportId, context)
+    if(count > 0) await resolveMissingSystemQOH(inventoryCountImportId, context)
     await syncToServer(inventoryCountImportId, context)
 
     self.postMessage({ type: 'aggregationComplete', count })
@@ -702,7 +707,7 @@ self.onmessage = async (messageEvent: MessageEvent) => {
     setInterval(async () => {
       const count = await aggregate(inventoryCountImportId, context)
       await resolveMissingProducts(inventoryCountImportId, context)
-      // if(count > 0) await resolveMissingSystemQOH(inventoryCountImportId, context)
+      if(count > 0) await resolveMissingSystemQOH(inventoryCountImportId, context)
       await syncToServer(inventoryCountImportId, context)
 
       self.postMessage({ type: 'aggregationComplete', count })

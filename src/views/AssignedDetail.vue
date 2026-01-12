@@ -26,7 +26,7 @@
             <ion-item>
               <ion-icon :icon="businessOutline" slot="start"></ion-icon>
               <ion-label>
-                {{ getFacilityName(workEffort?.facilityId) }}
+                {{ getFacilityName(workEffort?.facilityId) || workEffort?.facilityId }}
               </ion-label>
             </ion-item>
             <!-- TODO: Need to Revisit the date-time-button css -->
@@ -101,80 +101,27 @@
 
         <div class="results ion-margin-top" v-if="filteredSessionItems?.length">
           <ion-accordion-group>
-          <DynamicScroller :items="filteredSessionItems" key-field="productId" :buffer="200" class="virtual-list" :min-item-size="120" :emit-update="true">
+          <DynamicScroller :items="filteredSessionItems" key-field="importItemSeqId" :buffer="200" class="virtual-list" :min-item-size="120" :emit-update="true">
             <template #default="{ item, index, active }">
               <DynamicScrollerItem :item="item" :index="index" :active="active">
-                  <ion-accordion :key="item.productId" @click="getCountSessions(item.productId)">
+                  <ion-accordion :key="item.importItemSeqId">
                     <div class="list-item count-item-rollup" slot="header"> 
                       <div class="item-key">
                         <ion-item lines="none">
                           <ion-thumbnail slot="start">
-                            <Image :src="item.detailImageUrl"/>
+                            <Image :src="item.product.mainImageUrl"/>
                           </ion-thumbnail>
-                          <ion-label>{{ item.internalName }}</ion-label>
+                          <ion-label>{{ item.product.internalName }}</ion-label>
                         </ion-item>
                       </div>
                       <ion-label class="stat">
-                        {{ item.quantity || '-'}}/{{ item.systemQuantityOnHand || '-' }}
+                        {{ item.quantity || '-'}}/{{ item.systemQuantity || '-' }}
                         <p>{{ translate("counted/systemic") }}</p>
                       </ion-label>
                       <ion-label class="stat">
-                        {{ item.proposedVarianceQuantity }}
+                        {{ item.proposedVariance }}
                         <p>{{ translate("variance") }}</p>
                       </ion-label>
-                    </div>
-                    <div slot="content" @click.stop="stopAccordianEventProp">
-                      <ion-list v-if="sessions === null">
-                        <ion-item v-for="number in item.numberOfSessions" :key="number">
-                          <ion-avatar slot="start">
-                            <ion-skeleton-text animated style="width: 100%; height: 40px;"></ion-skeleton-text>
-                          </ion-avatar>
-                          <ion-label>
-                      <p><ion-skeleton-text animated style="width: 60%"></ion-skeleton-text></p>
-                    </ion-label>
-                    <ion-label>
-                            <p><ion-skeleton-text animated style="width: 60%"></ion-skeleton-text></p>
-                          </ion-label>
-                          <ion-label>
-                            <ion-skeleton-text animated style="width: 60%"></ion-skeleton-text>
-                            <p><ion-skeleton-text  animated style="width: 60%"></ion-skeleton-text></p>
-                          </ion-label>
-                          <ion-label>
-                            <ion-skeleton-text animated style="width: 60%"></ion-skeleton-text>
-                            <p><ion-skeleton-text animated style="width: 60%"></ion-skeleton-text></p>
-                          </ion-label>
-                          <ion-label>
-                            <ion-skeleton-text animated style="width: 60%"></ion-skeleton-text>
-                            <p><ion-skeleton-text animated style="width: 60%"></ion-skeleton-text></p>
-                          </ion-label>
-                        </ion-item>
-                      </ion-list>
-                      <div v-else v-for="session in sessions" :key="session.inventoryCountImportId" class="list-item count-item" @click.stop="stopAccordianEventProp">
-                        <ion-item lines="none">
-                          <ion-icon :icon="personCircleOutline" slot="start"></ion-icon>
-                          <ion-label>
-                      {{ session.countImportName || "-" }}
-                      <p>
-                        {{ session.uploadedByUserLogin }}
-                      </p>
-                    </ion-label>
-                        </ion-item>
-                        <ion-label>
-                          {{ session.counted }}
-                          <p>{{ translate("counted") }}</p>
-                        </ion-label>
-                        <ion-label>
-                          {{ getDateTimeWithOrdinalSuffix(session.createdDate) }}
-                          <p>{{ translate("started") }}</p>
-                        </ion-label>
-                        <ion-label>
-                          {{ getDateTimeWithOrdinalSuffix(session.lastUpdatedAt) }}
-                          <p>{{ translate("last updated") }}</p>
-                        </ion-label>
-                        <ion-button fill="clear" color="medium" @click="openSessionPopover($event, session, item)">
-                          <ion-icon slot="icon-only" :icon="ellipsisVerticalOutline" />
-                        </ion-button>
-                      </div>
                     </div>
                   </ion-accordion>
               </DynamicScrollerItem>
@@ -222,7 +169,7 @@
 
 <script setup lang="ts">
 import { computed, defineProps, ref } from "vue";
-import { IonAlert, IonPopover, IonAccordion, IonAccordionGroup, IonAvatar, IonBackButton, IonButton, IonButtons, IonCard, IonContent, IonDatetime, IonDatetimeButton, IonFooter, IonHeader, IonIcon, IonItem, IonLabel, IonList, IonListHeader, IonModal, IonPage, IonTitle, IonToolbar, IonThumbnail, onIonViewDidEnter, IonSkeletonText, alertController } from "@ionic/vue";
+import { IonAlert, IonPopover, IonAccordion, IonAccordionGroup, IonAvatar, IonBackButton, IonButton, IonButtons, IonCard, IonContent, IonDatetime, IonDatetimeButton, IonFooter, IonHeader, IonIcon, IonItem, IonItemGroup, IonLabel, IonList, IonListHeader, IonModal, IonPage, IonTitle, IonToolbar, IonThumbnail, onIonViewDidEnter, IonSkeletonText, alertController } from "@ionic/vue";
 import { calendarClearOutline, businessOutline, personCircleOutline, ellipsisVerticalOutline } from "ionicons/icons";
 import { translate } from '@/i18n'
 import { useInventoryCountRun } from "@/composables/useInventoryCountRun";
@@ -236,6 +183,7 @@ import { getDateTimeWithOrdinalSuffix } from "@/services/utils";
 import SmartFilterSortBar from "@/components/SmartFilterSortBar.vue";
 import router from "@/router";
 import { useUserProfile } from "@/stores/userProfileStore";
+import { useProductMaster } from "@/composables/useProductMaster";
 
 
 const facilities = computed(() => useProductStore().getFacilities);
@@ -432,12 +380,31 @@ async function getInventoryCycleCount() {
         pageSize,
         pageIndex,
       });
-      if (resp && resp.status === 200 && resp.data?.length) {
-        aggregatedSessionItems.value.push(...resp.data);
-        if (resp.data.length < pageSize) {
+      if (resp && resp.status === 200 && resp.data?.items?.length) {
+        aggregatedSessionItems.value.push(...resp.data.items);
+        if (resp.data.items.length < pageSize) {
           hasMore = false;
         } else {
           pageIndex++;
+        }
+        const productIds = [...new Set(
+          resp.data.items
+            .filter((item: any) => item?.productId)
+            .map((item: any) => item.productId)
+        )];
+
+        if (productIds.length) {
+          await useProductMaster().prefetch(productIds as any);
+          for (const productId of productIds) {
+            const { product } = await useProductMaster().getById(productId as any);
+            if (!product) continue;
+
+            aggregatedSessionItems.value
+            .filter(item => item.productId === productId)
+            .forEach(item => {
+              item.product = product;
+            });
+          }
         }
       } else {
         hasMore = false;

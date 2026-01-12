@@ -4,6 +4,7 @@
       <ion-toolbar>
         <ion-back-button slot="start" default-href="/tabs/count"/>
         <ion-title slot="start">{{ translate("Count Details") }}</ion-title>
+        <ion-button @click="submitCycleCount" slot="end" color="success" fill="outline">{{ translate("Submit") }}</ion-button>
       </ion-toolbar>
       <ion-segment v-model="activeSegment">
         <ion-segment-button value="location">{{ translate("location") }}</ion-segment-button>
@@ -205,9 +206,6 @@ function groupItemsByLocationAndProduct() {
       }
     }
   );
-
-  console.log("By Location: ", itemsByLocation.value);
-  console.log("Session Map: ", sessionMap.value);
 }
 
 function getSessionStatus(statusId: string) {
@@ -221,7 +219,6 @@ function getSessionStatus(statusId: string) {
 }
 
 function viewSession(session: any) {
-  console.log("Viewing session: ", session);
   useInventoryCountImport().mapSessionAndLocation(session.inventoryCountImportId, session.facilityAreaId);
   router.push(`/session-count-detail/${props.workEffortId}/${workEffort.value?.workEffortPurposeTypeId}/${session.inventoryCountImportId}`);
 }
@@ -231,6 +228,26 @@ async function startNewSession(locationSeqId?: string, productName?: string) {
   await getCycleCountItems();
   groupItemsByLocationAndProduct();
   router.push(`/session-count-detail/${props.workEffortId}/${workEffort.value?.workEffortPurposeTypeId}/new`);
+}
+
+async function submitCycleCount() {
+  try {
+    const resp = await useInventoryCountRun().updateWorkEffort({
+      workEffortId: props.workEffortId,
+      currentStatusId: 'CYCLE_CNT_CMPLTD'
+    });
+
+    if (resp && !hasError(resp)) {
+      showToast(translate("Count submitted successfully"));
+      router.replace('/tabs/count');
+    } else {
+      throw resp;
+    }
+  } catch (error) {
+    console.error("Error submitting cycle count", error);
+    showToast(translate("Failed to submit count"));
+    return;
+  }
 }
 
 </script>

@@ -183,15 +183,28 @@
     <ion-footer v-else>
       <ion-toolbar>
         <div class="footer-actions ion-margin">
-          <ion-button expand="block" fill="outline" color="warning">
+          <ion-button expand="block" fill="outline" color="warning" @click="showDiscardAlert = true" :disabled="sessionLocked">
             {{ translate("VOID SESSION") }}
           </ion-button>
-          <ion-button expand="block" fill="outline" color="success">
+          <ion-button v-if="isSessionInProgress" expand="block" fill="outline" color="success" @click="showSubmitAlert = true" :disabled="sessionLocked">
             {{ translate("SUBMIT SESSION") }}
           </ion-button>
         </div>
       </ion-toolbar>
     </ion-footer>
+    <ion-alert :is-open="showSubmitAlert" :header="translate('Complete session')" :message="translate('You’re about to complete this session in the cycle count and won’t be able to edit it again. After all sessions are completed, submit the cycle count for approval from the review cycle count page.')"
+        :buttons="[
+          { text: 'Cancel', role: 'cancel', handler: () => showSubmitAlert = false },
+          { text: 'Submit', role: 'confirm', handler: confirmSubmit }
+        ]"
+        @didDismiss="showSubmitAlert = false"/>
+
+      <ion-alert :is-open="showDiscardAlert" :header="translate('Discard session')" :message="translate('This session will be discarded and it won\'t be included for review when analyzing variances.')"
+        :buttons="[
+          { text: translate('Cancel'), role: 'cancel', handler: () => showDiscardAlert = false },
+          { text: translate('Discard'), role: 'confirm', handler: confirmDiscard }
+        ]"
+        @didDismiss="showDiscardAlert = false"/>
   </ion-page>
 </template>
 
@@ -199,6 +212,7 @@
 import { 
   IonAccordion,
   IonAccordionGroup,
+  IonAlert,
   IonBackButton, 
   IonBadge,
   IonButton,
@@ -291,6 +305,11 @@ const barcodeIdentifierPref = computed(() => useProductStore().getBarcodeIdentif
 const barcodeIdentifierDescription = computed(() => getGoodIdentificationOptions.value?.find((opt: any) => opt.goodIdentificationTypeId === barcodeIdentifierPref.value)?.description);
 const scanProductIdentifier = ref(false);
 
+const isSessionInProgress = computed(() => inventoryCountImport.value?.statusId === 'SESSION_ASSIGNED');
+
+const showSubmitAlert = ref(false)
+const showDiscardAlert = ref(false)
+
 watchEffect(() => {
   stats.value = {
     totalUnits: totalUnitsCount.value,
@@ -372,10 +391,16 @@ onIonViewDidEnter(async () => {
   loader.dismiss();
 });
 
-onIonViewDidLeave(() => {
-  console.log("This is running");
+onIonViewDidLeave(async () => {
   subscriptions.forEach(subscription => subscription.unsubscribe());
   subscriptions.length = 0;
+
+  await finalizeAggregationAndSync();
+  await unscheduleWorker();
+  if (lockWorker) {
+    await lockWorker.stopHeartbeat()
+    lockWorker = null
+  }
 });
 
 async function handleSessionLock() {
@@ -466,10 +491,10 @@ async function handleSessionLock() {
       thruDate: fromDate + (lockLeaseSeconds * 1000)
     });
 
-    if (newLockResp?.status === 200) {
+    if (!hasError(newLockResp)) {
       currentLock.value = newLockResp.data;
       showToast('Session lock acquired.');
-
+      inventoryCountImport.value.statusId = 'SESSION_ASSIGNED';
       let worker: Worker | null = null;
       if (!lockWorker) {
         worker = new Worker(
@@ -532,7 +557,7 @@ async function releaseSessionLock() {
   try {
     const payload = {
       inventoryCountImportId: props.inventoryCountImportId,
-      userId: useUserProfile().getUserProfile?.username,
+      userId: useUserProfile().getUserProfile?.userLoginId,
       thruDate: DateTime.now().toMillis(),
       fromDate: currentLock.value.fromDate
     };
@@ -700,6 +725,92 @@ function openImagePreview(src: string) {
   if (!src) return
   largeImage.value = src
   isImageModalOpen.value = true
+}
+
+async function confirmSubmit() {
+  showSubmitAlert.value = false
+  try {
+    if (unmatchedItems.value.length > 0) {
+      showToast(translate("Unmatched products should be resolved before submission"))
+      return
+    }
+    await finalizeAggregationAndSync()
+    await useInventoryCountImport().updateSession({
+      inventoryCountImportId: props.inventoryCountImportId,
+      statusId: 'SESSION_SUBMITTED'
+    })
+    inventoryCountImport.value.statusId = 'SESSION_SUBMITTED'
+    await releaseSessionLock()
+    if (lockWorker) await lockWorker.stopHeartbeat()
+    showToast('Session submitted successfully')
+    router.replace(`/count-detail/${props.workEffortId}`)
+  } catch (err) {
+    console.error(err)
+    showToast('Failed to submit session')
+  }
+}
+
+async function confirmDiscard() {
+  showDiscardAlert.value = false
+  try {
+    await finalizeAggregationAndSync()
+    await useInventoryCountImport().updateSession({
+      inventoryCountImportId: props.inventoryCountImportId,
+      statusId: 'SESSION_VOIDED',
+    })
+    inventoryCountImport.value.statusId = 'SESSION_VOIDED'
+    await releaseSessionLock()
+    if (lockWorker) await lockWorker.stopHeartbeat()
+    showToast('Session discarded')
+    await router.replace(`/count-detail/${props.workEffortId}`)
+  } catch (err) {
+    console.error(err)
+    showToast('Failed to discard session')
+  }
+}
+
+async function finalizeAggregationAndSync() {
+  try {
+    if (!aggregationWorker) return;
+
+    const barcodeIdentification = useProductStore().getBarcodeIdentificationPref;
+
+    const context = {
+      omsUrl: useAuthStore().getBaseUrl,
+      omsInstance: useAuthStore().getOMS,
+      userLoginId: useUserProfile().getUserProfile?.userLoginId,
+      token: useAuthStore().token.value,
+      barcodeIdentification,
+      inventoryCountTypeId: props.inventoryCountTypeId,
+      facilityId: useProductStore().getCurrentFacility.facilityId
+    };
+
+    aggregationWorker.postMessage({
+      type: 'aggregate',
+      payload: {
+        workEffortId: props.workEffortId,
+        inventoryCountImportId: props.inventoryCountImportId,
+        context
+      }
+    });
+
+    return;
+  } catch (err) {
+    console.error('[Session] Error during final aggregation:', err);
+    return 0;
+  }
+}
+
+async function unscheduleWorker() {
+  try {
+    if (aggregationWorker) {
+      console.log('[Session] Terminating background aggregation worker...');
+      aggregationWorker.terminate();
+      aggregationWorker = null;
+    }
+  } catch (err) {
+    console.error('[Session] Failed to terminate worker:', err);
+  }
 }
 </script>
 

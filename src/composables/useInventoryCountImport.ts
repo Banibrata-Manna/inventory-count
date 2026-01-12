@@ -435,8 +435,8 @@ async function submitSession(inventoryCountImportId: string): Promise<void> {
 
 const updateSession = async (payload: any): Promise <any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/sessions/${payload.inventoryCountImportId}`,
-    method: "put",
+    url: `service/updateInventoryCountSession`,
+    method: "POST",
     data: payload
   })
 }

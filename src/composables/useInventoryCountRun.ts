@@ -56,18 +56,18 @@ const getProductReviewDetail = async (payload: any): Promise<any> => {
 
 const getProductReviewDetailCount = async (payload: any): Promise<any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/workEfforts/${payload.workEffortId}/reviews/count`,
-    method: "get",
-    params: payload
+    url: `service/getProductReviewDetailCount`,
+    method: "POST",
+    data: payload
   });
 };
 
 /** Get cycle count review summary */
 const getCycleCount = async (payload: any): Promise<any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/workEfforts/${payload.workEffortId}/reviews`,
-    method: "get",
-    params: payload
+    url: `service/getInventoryCountSessionItems`,
+    method: "POST",
+    data: payload
   });
 };
 
