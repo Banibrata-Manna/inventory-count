@@ -10,9 +10,11 @@ Due date \= Estimated completion date
 Start date \= Estimated start date  
 ![Open cycle counts](./store-view-images/counts.jpg)
 
-## 
 
 ## Count Details
+
+Ready to count vs Blocked items:
+An inventory item can only be counted when there are no active reservations assigned to it in the OISGIR table. While those reservations exist, the inventory count item will be considered "blocked" and is not ready to count.
 
 For a given work effort:  
 List items in “ready to count” where:
@@ -119,3 +121,17 @@ On “save count” update inventory count import item
 Once all items have a counted value, the progress bar at the top turns to “Submit for review” button that changes the session and work effort status
 
 ![Count Detail Complete](./store-view-images/count-detail-complete.jpg)
+
+## Session lock
+
+The cycle count app used to use a session lock to prevent multiple users from editing the same item. This is no longer needed as the app no longer uses a session lock. Users are counting one item at a time and they can only select items that are not already being counted by another user.
+
+Because session lock is no longer used, the app no longer needs to create a session lock, check if a session is available, or release a session lock. Instead, the status of a session has been removed entirely from the user interface. and instead the app will manage this logic itself to service api requirments to the server.
+
+How this works:
+
+1. Work effort is created with status "created" and session status "session created"
+2. When user starts counting, the work effort status is changed to "in progress" and session status is changed to "in progress"
+3. When user completes counting and clicks submit for review, the work effort status is changed to "completed" and session status is changed to "completed".
+
+This means all logic to aquire a session lock, check if a session is available, or release a session lock is no longer needed. and should be removed from the count detail and count item detail pages.

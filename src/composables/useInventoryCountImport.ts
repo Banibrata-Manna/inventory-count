@@ -261,6 +261,14 @@ function currentMillis(): number {
       return record?.locationSeqId || '';
     });
 
+  const getLastLocationSeqId = async (inventoryCountImportId: string) => {
+    const record = await db.lastSessionAndLocation
+      .where('inventoryCountImportId')
+      .equals(inventoryCountImportId)
+      .first();
+    return record?.locationSeqId || '';
+  }
+
   const getUnmatchedItems = (inventoryCountImportId: string, locationSeqId: string) =>
     liveQuery(async () => {  
       const items = await db.inventoryCountRecords
@@ -545,6 +553,7 @@ export function useInventoryCountImport() {
     getSessionItemsByImportId,
     getSessionProductIds,
     getSessionLock,
+    getLastLocationSeqId,
     getTotalCountedUnits,
     getUncountedItems,
     getUndirectedItems,

@@ -314,6 +314,8 @@
   "variance": "variance",
   "products remaining": "{count} products remaining",
   "locations remaining": "{count} locations remaining",
+  "tasks left to complete count": "{count} / {total} tasks left to complete count",
+  "tasks blocked by reservations": "{count} tasks blocked by reservations",
   "requested": "{count} requested",
   "Add Date": "Add Date",
   "All items are already reviewed. Do you want to close the cycle count?": "All items are already reviewed. Do you want to close the cycle count?",
