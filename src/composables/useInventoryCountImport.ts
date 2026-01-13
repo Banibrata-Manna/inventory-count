@@ -550,6 +550,22 @@ const getSessionItemsByImportId = async (inventoryCountImportId: string, params:
   });
 }
 
+const approveInventoryCountSessionItem = async (payload: any): Promise<any> => {
+  return await api({
+    url: `service/approveInventoryCountSessionItem`,
+    method: 'POST',
+    data: payload
+  });
+}
+
+const rejectInventoryCountSessionItem = async (payload: any): Promise<any> => {
+  return await api({
+    url: `service/rejectInventoryCountSessionItem`,
+    method: 'POST',
+    data: payload
+  });
+}
+
 const updateSessionItem = async (params: any): Promise<any> => {
   return await api({
     url: `inventory-cycle-count/cycleCounts/sessions/${params.inventoryCountImportId}/items`,
@@ -642,6 +658,8 @@ export function useInventoryCountImport() {
     submitSession,
     updateSession,
     updateSessionItem,
-    deleteSessionItem
+    deleteSessionItem,
+    approveInventoryCountSessionItem,
+    rejectInventoryCountSessionItem
   };
 }

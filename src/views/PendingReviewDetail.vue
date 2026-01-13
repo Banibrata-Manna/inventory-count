@@ -122,29 +122,29 @@
 
         <div class="results ion-margin-top" v-if="filteredSessionItems?.length">
           <ion-accordion-group>
-          <DynamicScroller :items="filteredSessionItems" key-field="productId" :buffer="200" class="virtual-list" :min-item-size="120">
+          <DynamicScroller :items="filteredSessionItems" key-field="importItemSeqId" :buffer="200" class="virtual-list" :min-item-size="120">
             <template #default="{ item, index, active }">
               <DynamicScrollerItem :item="item" :index="index" :active="active">
-                  <ion-accordion :key="item.productId" @click="getCountSessions(item.productId)">
+                  <ion-accordion :key="item.importItemSeqId">
                     <!-- HEADER -->
                     <div class="list-item count-item-rollup" slot="header">
                       <div class="item-key">
                         <ion-checkbox :color="item.decisionOutcomeEnumId ? 'medium' : 'primary'" :disabled="item.decisionOutcomeEnumId" @click.stop="stopAccordianEventProp" :checked="isSelected(item) || item.decisionOutcomeEnumId" @ionChange="() => toggleSelectedForReview(item)"></ion-checkbox>
                         <ion-item lines="none">
                           <ion-thumbnail slot="start">
-                            <Image :src="item.detailImageUrl" />
+                            <Image :src="item.product?.mainImageUrl || item.detailImageUrl" />
                           </ion-thumbnail>
-                          <ion-label>{{ item.internalName }}</ion-label>
+                          <ion-label>{{ item.product?.internalName || item.internalName }}</ion-label>
                         </ion-item>
                       </div>
 
                       <ion-label class="stat">
-                        {{ item.quantity || '-' }}/{{ item.systemQuantityOnHand || '-' }}
+                        {{ item.quantity ?? '-' }}/{{ item.systemQuantity ?? item.systemQuantityOnHand ?? item.quantityOnHand ?? '-' }}
                         <p>{{ translate("counted/systemic") }}</p>
                       </ion-label>
 
                       <ion-label class="stat">
-                        {{ item.proposedVarianceQuantity }}
+                        {{ item.proposedVarianceQuantity ?? item.proposedVariance ?? '-' }}
                         <p>{{ translate("variance") }}</p>
                       </ion-label>
 
@@ -156,14 +156,7 @@
                           size="small"
                           @click.stop="stopAccordianEventProp"
                           @click="
-                            submitSingleProductReview(
-                              item.productId,
-                              item.proposedVarianceQuantity,
-                              'APPLIED',
-                              item.quantityOnHand,
-                              item.quantity,
-                              item
-                            )
+                            submitSingleItemReview(item, 'APPLIED')
                           "
                         >
                           {{ translate("Accept") }}
@@ -175,14 +168,7 @@
                           size="small"
                           @click.stop="stopAccordianEventProp"
                           @click="
-                            submitSingleProductReview(
-                              item.productId,
-                              item.proposedVarianceQuantity,
-                              'SKIPPED',
-                              item.quantityOnHand,
-                              item.quantity,
-                              item
-                            )
+                            submitSingleItemReview(item, 'SKIPPED')
                           "
                         >
                           {{ translate("Reject") }}
@@ -198,79 +184,11 @@
                       </ion-badge>
                     </div>
 
-                    <!-- ACCORDION CONTENT -->
-                    <div slot="content" @click.stop="stopAccordianEventProp">
-                      <ion-list v-if="sessions === null">
-                        <ion-item v-for="number in item.numberOfSessions" :key="number">
-                          <ion-avatar slot="start">
-                            <ion-skeleton-text animated style="width: 100%; height: 40px"></ion-skeleton-text>
-                          </ion-avatar>
-                          <ion-label><ion-skeleton-text animated style="width: 60%"></ion-skeleton-text></ion-label>
-                        </ion-item>
-                      </ion-list>
-
-                      <div
-                        v-else
-                        v-for="session in sessions"
-                        :key="session.inventoryCountImportId"
-                        class="list-item count-item"
-                        @click.stop="stopAccordianEventProp"
-                      >
-                        <ion-item lines="none">
-                          <ion-icon :icon="personCircleOutline" slot="start"></ion-icon>
-                          <ion-label>
-                            {{ session.countImportName || "-" }}
-                            <p>{{ session.uploadedByUserLogin }}</p>
-                          </ion-label>
-                        </ion-item>
-
-                        <ion-label>
-                          {{ session.counted }}
-                          <p>{{ translate("counted") }}</p>
-                        </ion-label>
-
-                        <ion-label>
-                          {{ getDateTimeWithOrdinalSuffix(session.createdDate) }}
-                          <p>{{ translate("started") }}</p>
-                        </ion-label>
-
-                        <ion-label>
-                          {{ getDateTimeWithOrdinalSuffix(session.lastUpdatedAt) }}
-                          <p>{{ translate("last updated") }}</p>
-                        </ion-label>
-
-                        <ion-button fill="clear" color="medium" @click="openSessionPopover($event, session, item)">
-                          <ion-icon slot="icon-only" :icon="ellipsisVerticalOutline"></ion-icon>
-                        </ion-button>
-                      </div>
-                    </div>
                   </ion-accordion>
                 </DynamicScrollerItem>
               </template>
             </DynamicScroller>
           </ion-accordion-group>
-
-          <!-- SESSION POPOVER -->
-          <ion-popover
-            :is-open="isSessionPopoverOpen"
-            :event="sessionPopoverEvent"
-            @did-dismiss="closeSessionPopover"
-            show-backdrop="false"
-          >
-            <ion-content>
-              <ion-list>
-                <ion-list-header>{{ selectedProductCountReview?.internalName }}</ion-list-header>
-                <ion-item size="small">{{ translate('Last Counted') }}: {{ getDateTimeWithOrdinalSuffix(selectedSession?.lastUpdatedAt) }}</ion-item>
-                <ion-item v-if="!selectedProductCountReview?.decisionOutcomeEnumId" button @click="showEditImportItemsModal" size="small">{{ translate('Edit Count') }}: {{ selectedSession?.counted }}</ion-item>
-                <ion-item v-if="!selectedProductCountReview?.decisionOutcomeEnumId" button @click="isRemoveSessionAlertOpen = true">
-                  <ion-label>
-                    {{ translate('Remove from count') }}
-                  </ion-label>
-                  <ion-icon :icon="removeCircleOutline" slot="icon-only"></ion-icon>
-                </ion-item>
-              </ion-list>
-            </ion-content>
-          </ion-popover>
         </div>
 
         <div v-else class="empty-state">
@@ -282,84 +200,6 @@
         <p class="empty-state">{{ translate("Cycle Count Not Found") }}</p>
       </template>
 
-      <!-- EDIT ITEM MODAL -->
-      <ion-modal :is-open="isEditImportItemModalOpen" @did-dismiss="closeEditImportItemModal">
-        <ion-header>
-          <ion-toolbar>
-            <ion-buttons slot="start">
-              <ion-button @click="closeEditImportItemModal">
-                <ion-icon :icon="closeOutline" slot="icon-only" />
-              </ion-button>
-            </ion-buttons>
-            <ion-title>{{ translate("Edit Item Count") }}</ion-title>
-          </ion-toolbar>
-        </ion-header>
-
-        <ion-content>
-
-          <ion-card>
-            <ion-item lines="none">
-              <ion-thumbnail slot="start">
-                <Image :src="selectedProductCountReview?.detailImageUrl" />
-              </ion-thumbnail>
-
-              <ion-label>
-                {{ selectedProductCountReview?.internalName }}
-                <p>{{ selectedProductCountReview?.productId }}</p>
-              </ion-label>
-            </ion-item>
-
-            <ion-item>
-              <ion-label>{{ translate("Cycle count total") }}</ion-label>
-              <ion-label slot="end">{{ selectedProductCountReview?.quantity }} {{ translate("units") }}</ion-label>
-            </ion-item>
-
-            <ion-item>
-              <ion-label>{{ translate("Session count total") }}</ion-label>
-              <ion-label slot="end">{{ selectedSession?.counted }} {{ translate("units") }}</ion-label>
-            </ion-item>
-          </ion-card>
-
-          <!-- EDIT SECTION -->
-          <ion-card>
-            <ion-item lines="full">
-              <ion-label>{{ translate("Edit session count") }}</ion-label>
-              <ion-item slot="end">
-                <!-- MINUS BUTTON -->
-                <ion-button fill="clear" @click="adjustEdit(-1)">
-                  <ion-icon slot="icon-only" :icon="removeCircleOutline"></ion-icon>
-                </ion-button>
-  
-                <!-- INPUT -->
-                <ion-input class="ion-text-center" type="number" v-model.number="editAdjustment"></ion-input>
-  
-                <!-- PLUS BUTTON -->
-                <ion-button fill="clear" @click="adjustEdit(1)">
-                  <ion-icon slot="icon-only" :icon="addCircleOutline"></ion-icon>
-                </ion-button>
-              </ion-item>
-            </ion-item>
-
-            <!-- NEW TOTALS -->
-            <ion-item>
-              <ion-label>{{ translate("New session count total") }}</ion-label>
-              <ion-label slot="end">{{ newSessionTotal }} {{ translate("units") }}</ion-label>
-            </ion-item>
-
-            <ion-item>
-              <ion-label>{{ translate("New cycle count total") }}</ion-label>
-              <ion-label slot="end">{{ newCycleCountTotal }} {{ translate("units") }}</ion-label>
-            </ion-item>
-          </ion-card>
-
-          <!-- FLOAT SAVE BUTTON -->
-          <ion-fab vertical="bottom" horizontal="end" slot="fixed">
-            <ion-fab-button @click="saveEditImportItems">
-              <ion-icon :icon="checkmarkDoneOutline" />
-            </ion-fab-button>
-          </ion-fab>
-        </ion-content>
-      </ion-modal>
     </ion-content>
 
     <!-- FOOTER ACTIONS -->
@@ -450,32 +290,20 @@
         { text: 'Confirm', handler: forceCloseWithoutAction }
       ]"
     ></ion-alert>
-    <ion-alert
-      :is-open="isRemoveSessionAlertOpen"
-      :header="translate('Remove session from count')"
-      :message="translate('Removing this session item will delete this entry and new proposed variances will be calculated. This action cannot be undone.')"
-      @didDismiss="isRemoveSessionAlertOpen = false"
-      :buttons="[
-        { text: translate('Cancel'), role: 'cancel' },
-        { text: translate('Remove'), handler: async () => await removeProductFromSession() }
-      ]"
-    ></ion-alert>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-/* imports stay EXACTLY the same */
 import {
-  IonAlert, IonProgressBar, IonInput, IonAccordion, IonAccordionGroup, IonAvatar,
+  IonAlert, IonProgressBar, IonAccordion, IonAccordionGroup,
   IonBackButton, IonBadge, IonButtons, IonButton, IonCard, IonCardContent,
-  IonCheckbox, IonContent, IonFab, IonFabButton, IonFooter, IonHeader, IonIcon,
-  IonItem, IonLabel, IonList, IonListHeader, IonModal, IonPage, IonPopover,
+  IonCheckbox, IonContent, IonFooter, IonHeader, IonIcon,
+  IonItem, IonLabel, IonList, IonModal, IonPage,
   IonRadio, IonRadioGroup, IonTitle, IonToolbar,
-  IonThumbnail, onIonViewDidEnter, IonSkeletonText
+  IonThumbnail, onIonViewDidEnter
 } from "@ionic/vue";
 import {
-  addCircleOutline, checkmarkDoneOutline, closeOutline, removeCircleOutline, calendarClearOutline,
-  businessOutline, personCircleOutline, ellipsisVerticalOutline
+  closeOutline, calendarClearOutline, businessOutline
 } from "ionicons/icons";
 import { ref, computed, defineProps } from "vue";
 import { translate } from "@/i18n";
@@ -483,6 +311,7 @@ import router from "@/router";
 import { DateTime } from "luxon";
 import { useInventoryCountRun } from "@/composables/useInventoryCountRun";
 import { useInventoryCountImport } from "@/composables/useInventoryCountImport";
+import { useProductMaster } from "@/composables/useProductMaster";
 import { useProductStore } from "@/stores/productStore";
 import { loader, showToast } from "@/services/uiUtils";
 import ProgressBar from "@/components/ProgressBar.vue";
@@ -501,14 +330,8 @@ const props = defineProps({
 const aggregatedSessionItems = ref<any[]>([]);
 const filteredSessionItems = ref<any[]>([]);
 const selectedProductsReview = ref<any[]>([]);
-const sessions = ref();
 
 const isLoading = ref(false);
-const isEditImportItemModalOpen = ref(false);
-const isSessionPopoverOpen = ref(false);
-const sessionPopoverEvent = ref<Event | null>(null);
-const selectedSession = ref<any | null>(null);
-const selectedProductCountReview = ref<any | null>(null);
 
 const isBulkCloseModalOpen = ref(false);
 const isCloseAlertOpen = ref(false);
@@ -521,7 +344,6 @@ const submittedItemsCount = ref(0);
 
 const firstCountedAt = ref();
 const lastCountedAt = ref();
-const isRemoveSessionAlertOpen = ref(false);
 
 const userProfile = useUserProfile();
 
@@ -537,20 +359,6 @@ const overallFilteredVarianceQtyProposed = computed(() =>
   )
 );
 
-const editAdjustment = ref(0);
-
-const newSessionTotal = computed(() => {
-  return (selectedSession.value?.counted || 0) + editAdjustment.value;
-});
-
-const newCycleCountTotal = computed(() => {
-  return (selectedProductCountReview.value?.quantity || 0) + editAdjustment.value;
-});
-
-function adjustEdit(delta: number) {
-  const result = editAdjustment.value + delta;
-  editAdjustment.value = Math.max(0, result);
-}
 /* lifecycle */
 onIonViewDidEnter(async () => {
   isLoading.value = true;
@@ -576,13 +384,13 @@ onIonViewDidEnter(async () => {
 /* PRODUCT SELECTION */
 function isSelected(product: any) {
   return selectedProductsReview.value.some(
-    (productReview) => productReview.productId === product.productId
+    (productReview) => productReview.importItemSeqId === product.importItemSeqId
   );
 }
 
 function toggleSelectedForReview(product: any) {
   const index = selectedProductsReview.value.findIndex(
-    (productReview) => productReview.productId === product.productId
+    (productReview) => productReview.importItemSeqId === product.importItemSeqId
   );
   if (index === -1) selectedProductsReview.value.push(product);
   else selectedProductsReview.value.splice(index, 1);
@@ -596,185 +404,6 @@ function toggleSelectAll(isChecked: any) {
   } else {
     selectedProductsReview.value = [];
   }
-}
-
-/* SESSION POPOVER */
-function openSessionPopover(event: Event, session: any, parentItem: any) {
-  selectedSession.value = session;
-  selectedProductCountReview.value = parentItem;
-  sessionPopoverEvent.value = event;
-  isSessionPopoverOpen.value = true;
-}
-
-function closeSessionPopover() {
-  isSessionPopoverOpen.value = false;
-  selectedSession.value = null;
-  selectedProductCountReview.value = null;
-}
-
-/* EDIT ITEM MODAL */
-function closeEditImportItemModal() {
-  isEditImportItemModalOpen.value = false;
-  closeSessionPopover();
-  editAdjustment.value = 0;
-}
-
-async function showEditImportItemsModal() {
-  try {
-    // FIXME: This is not correct API call, in Maarg it is different, returns joined Import Item with Inventory Item
-    const resp = await useInventoryCountImport().getSessionItemsByImportId(
-      selectedSession.value.inventoryCountImportId,
-      {
-        productId: selectedSession.value.productId,
-        facilityId: workEffort.value.facilityId
-      }
-    );
-    if (resp?.data?.length) {
-      selectedSession.value.importItems = resp.data;
-      isEditImportItemModalOpen.value = true;
-    }
-  } catch {
-    showToast("Failed to load count details");
-  }
-}
-
-async function saveEditImportItems() {
-  await loader.present("Saving...");
-  try {
-    const newTotal = newSessionTotal.value;
-
-    await useInventoryCountImport().updateSessionItem({
-      inventoryCountImportId: selectedSession.value.inventoryCountImportId,
-      items: [{
-        ...selectedSession.value.importItems[0],
-        quantity: newTotal
-      }],
-    });
-
-    selectedSession.value.counted = newTotal;
-
-    const index = sessions.value.findIndex(
-      (session: any) => session.inventoryCountImportId === selectedSession.value.inventoryCountImportId
-    );
-    if (index !== -1) {
-      sessions.value[index] = {
-        ...sessions.value[index],
-        counted: newTotal
-      };
-    }
-
-    const parent = selectedProductCountReview.value;
-
-    // recompute total counted from all sessions for this product
-    const headerTotal = sessions.value.reduce(
-      (sum: number, session: any) => sum + Number(session.counted || 0),
-      0
-    );
-
-    parent.quantity = headerTotal;
-    parent.proposedVarianceQuantity = headerTotal - parent.quantityOnHand;
-
-    const listIndex = filteredSessionItems.value.findIndex(
-      sessionItem => sessionItem.productId === parent.productId
-    );
-    if (listIndex !== -1) {
-      filteredSessionItems.value[listIndex] = {
-        ...filteredSessionItems.value[listIndex],
-        quantity: parent.quantity,
-        proposedVarianceQuantity: parent.proposedVarianceQuantity
-      };
-    }
-
-    const aggIndex = aggregatedSessionItems.value.findIndex(
-      aggregatedItem => aggregatedItem.productId === parent.productId
-    );
-    if (aggIndex !== -1) {
-      aggregatedSessionItems.value[aggIndex] = {
-        ...aggregatedSessionItems.value[aggIndex],
-        quantity: parent.quantity,
-        proposedVarianceQuantity: parent.proposedVarianceQuantity
-      };
-    }
-
-    closeEditImportItemModal();
-  } catch {
-    showToast("Failed to update count");
-  }
-  aggregatedSessionItems.value = [...aggregatedSessionItems.value];
-  loader.dismiss();
-}
-
-/* REMOVE FROM SESSION */
-async function removeProductFromSession() {
-  await loader.present("Removing...");
-  try {
-    // FIXME: This is not correct API call, in Maarg it is different, returns joined Import Item with Inventory Item
-    const resp = await useInventoryCountImport().getSessionItemsByImportId(
-      selectedSession.value.inventoryCountImportId,
-      {
-        productId: selectedSession.value.productId,
-        facilityId: workEffort.value.facilityId
-      }
-    );
-
-    await useInventoryCountImport().deleteSessionItem({
-      inventoryCountImportId: selectedSession.value.inventoryCountImportId,
-      data: resp.data,
-    });
-
-    const parent = selectedProductCountReview.value;
-    const removedSessionId = selectedSession.value.inventoryCountImportId;
-
-    sessions.value = sessions.value.filter(
-      (session: any) => session.inventoryCountImportId !== removedSessionId
-    );
-
-    if (sessions.value.length > 0) {
-      const newTotal = sessions.value.reduce(
-        (sum: number, session: any) => sum + Number(session.counted || 0),
-        0
-      );
-
-      parent.quantity = newTotal;
-      parent.proposedVarianceQuantity = newTotal - parent.quantityOnHand;
-
-      const aggregatedIndex = aggregatedSessionItems.value.findIndex(
-        (item) => item.productId === parent.productId
-      );
-      if (aggregatedIndex !== -1) {
-        aggregatedSessionItems.value[aggregatedIndex] = {
-          ...aggregatedSessionItems.value[aggregatedIndex],
-          quantity: parent.quantity,
-          proposedVarianceQuantity: parent.proposedVarianceQuantity,
-        };
-      }
-
-      const filterIndex = filteredSessionItems.value.findIndex(
-        (item) => item.productId === parent.productId
-      );
-      if (filterIndex !== -1) {
-        filteredSessionItems.value[filterIndex] = {
-          ...filteredSessionItems.value[filterIndex],
-          quantity: parent.quantity,
-          proposedVarianceQuantity: parent.proposedVarianceQuantity,
-        };
-      }
-
-    } else {
-      aggregatedSessionItems.value = aggregatedSessionItems.value.filter(
-        (item) => item.productId !== parent.productId
-      );
-      filteredSessionItems.value = filteredSessionItems.value.filter(
-        (item) => item.productId !== parent.productId
-      );
-    }
-
-    closeSessionPopover();
-  } catch {
-    showToast("Failed to remove item");
-  }
-  aggregatedSessionItems.value = [...aggregatedSessionItems.value];
-  loader.dismiss();
 }
 
 /* API CALLS */
@@ -798,13 +427,53 @@ async function getInventoryCycleCount() {
         pageIndex,
       });
 
-      if (!resp?.data?.length) break;
+      if (!resp?.data?.items?.length) break;
 
-      aggregatedSessionItems.value.push(...resp.data);
+      const batchItems = resp.data.items;
+
+      batchItems.forEach((item: any) => {
+        if (item.itemStatusId === "CYCLE_ITEM_APPROVED") {
+          item.decisionOutcomeEnumId = "APPLIED";
+        } else if (item.itemStatusId === "CYCLE_ITEM_REJECTED") {
+          item.decisionOutcomeEnumId = "SKIPPED";
+        } else if (item.decisionOutcomeEnumId === undefined) {
+          item.decisionOutcomeEnumId = null;
+        }
+        if (item.proposedVarianceQuantity === undefined) {
+          item.proposedVarianceQuantity = item.proposedVariance ?? item.varianceQuantity ?? 0;
+        }
+        if (item.quantityOnHand === undefined) {
+          item.quantityOnHand = item.systemQuantity ?? item.systemQuantityOnHand;
+        }
+      });
+
+      aggregatedSessionItems.value.push(...batchItems);
+
+      const productIds = [...new Set(
+        batchItems
+          .filter((item: any) => item?.productId)
+          .map((item: any) => item.productId)
+      )];
+
+      if (productIds.length) {
+        await useProductMaster().prefetch(productIds as any);
+        for (const productId of productIds) {
+          const { product } = await useProductMaster().getById(productId as any);
+          if (!product) continue;
+
+          aggregatedSessionItems.value
+            .filter(item => item.productId === productId)
+            .forEach(item => {
+              item.product = product;
+              item.internalName = item.internalName || product.internalName;
+              item.detailImageUrl = item.detailImageUrl || product.mainImageUrl;
+            });
+        }
+      }
 
       loadedItems.value = aggregatedSessionItems.value.length;
 
-      if (resp.data.length < pageSize) {
+      if (batchItems.length < pageSize) {
         hasMore = false;
         break;
       }
@@ -812,11 +481,11 @@ async function getInventoryCycleCount() {
     }
 
     if (aggregatedSessionItems.value.length) {
-      const minTimes = aggregatedSessionItems.value.map((item) => item.minLastUpdatedAt);
-      const maxTimes = aggregatedSessionItems.value.map((item) => item.maxLastUpdatedAt);
+      const minTimes = aggregatedSessionItems.value.map((item) => item.minLastUpdatedAt ?? item.lastUpdatedAt).filter(Boolean);
+      const maxTimes = aggregatedSessionItems.value.map((item) => item.maxLastUpdatedAt ?? item.lastUpdatedAt).filter(Boolean);
 
-      firstCountedAt.value = Math.min(...minTimes);
-      lastCountedAt.value = Math.max(...maxTimes);
+      if (minTimes.length) firstCountedAt.value = Math.min(...minTimes);
+      if (maxTimes.length) lastCountedAt.value = Math.max(...maxTimes);
     }
 
     submittedItemsCount.value = aggregatedSessionItems.value.filter(
@@ -831,46 +500,26 @@ async function getInventoryCycleCount() {
   }
 }
 
-async function getCountSessions(productId: any) {
-  sessions.value = null;
-  try {
-    const resp = await useInventoryCountRun().getSessionsCount({
-      workEffortId: props.workEffortId,
-      productId,
-    });
-    sessions.value = resp?.data || [];
-  } catch {
-    sessions.value = [];
+/* REVIEW SUBMISSION */
+async function applyDecisionToItem(item: any, outcome: any) {
+  const payload = {
+    workEffortId: props.workEffortId,
+    inventoryCountImportId: item.inventoryCountImportId,
+    importItemSeqId: item.importItemSeqId,
+    productId: item.productId
+  };
+
+  if (outcome === "APPLIED") {
+    await useInventoryCountImport().approveInventoryCountSessionItem(payload);
+  } else {
+    await useInventoryCountImport().rejectInventoryCountSessionItem(payload);
   }
 }
 
-/* REVIEW SUBMISSION */
-async function submitSingleProductReview(
-  productId: any,
-  variance: any,
-  outcome: any,
-  systemQ: any,
-  countedQ: any,
-  item: any
-) {
+async function submitSingleItemReview(item: any, outcome: any) {
   await loader.present("Submitting...");
   try {
-    const body = [
-      {
-        workEffortId: props.workEffortId,
-        productId,
-        facilityId: workEffort.value.facilityId,
-        varianceQuantity: variance,
-        systemQuantity: systemQ,
-        countedQuantity: countedQ,
-        decisionOutcomeEnumId: outcome,
-        decisionReasonEnumId: "PARTIAL_SCOPE_POST",
-      },
-    ];
-
-    await useInventoryCountRun().submitProductReview({
-      inventoryCountProductsList: body,
-    });
+    await applyDecisionToItem(item, outcome);
 
     item.decisionOutcomeEnumId = outcome;
     submittedItemsCount.value++;
@@ -885,32 +534,15 @@ async function submitSelectedProductReviews(outcome: any) {
   await loader.present("Submitting Review...");
 
   try {
-    const items = selectedProductsReview.value.map((product) => ({
-      workEffortId: props.workEffortId,
-      productId: product.productId,
-      facilityId: workEffort.value.facilityId,
-      varianceQuantity: product.proposedVarianceQuantity,
-      systemQuantity: product.quantityOnHand,
-      countedQuantity: product.quantity,
-      decisionOutcomeEnumId: outcome,
-      decisionReasonEnumId: "PARTIAL_SCOPE_POST",
-    }));
-
     const batchSize = 250;
 
-    for (let i = 0; i < items.length; i += batchSize) {
-      const batch = items.slice(i, i + batchSize);
+    for (let i = 0; i < selectedProductsReview.value.length; i += batchSize) {
+      const batch = selectedProductsReview.value.slice(i, i + batchSize);
 
-      await useInventoryCountRun().submitProductReview({
-        inventoryCountProductsList: batch,
-      });
+      await Promise.all(batch.map((item) => applyDecisionToItem(item, outcome)));
 
-      const processedIds = batch.map((batch) => batch.productId);
-
-      filteredSessionItems.value.forEach((item) => {
-        if (processedIds.includes(item.productId)) {
-          item.decisionOutcomeEnumId = outcome;
-        }
+      batch.forEach((item) => {
+        item.decisionOutcomeEnumId = outcome;
       });
 
       submittedItemsCount.value += batch.length;
@@ -967,30 +599,15 @@ async function performBulkCloseAction() {
   await loader.present("Closing cycle count...");
 
   try {
-    const itemsToProcess = openItems.value.map((item) => ({
-      workEffortId: props.workEffortId,
-      productId: item.productId,
-      facilityId: workEffort.value.facilityId,
-      varianceQuantity: item.proposedVarianceQuantity,
-      systemQuantity: item.quantityOnHand,
-      countedQuantity: item.quantity,
-      decisionOutcomeEnumId: bulkAction.value,
-      decisionReasonEnumId: "PARTIAL_SCOPE_POST",
-    }));
-
     const batchSize = 250;
 
-    for (let i = 0; i < itemsToProcess.length; i += batchSize) {
-      const batch = itemsToProcess.slice(i, i + batchSize);
+    for (let i = 0; i < openItems.value.length; i += batchSize) {
+      const batch = openItems.value.slice(i, i + batchSize);
 
-      await useInventoryCountRun().submitProductReview({
-        inventoryCountProductsList: batch,
-      });
+      await Promise.all(batch.map((item) => applyDecisionToItem(item, bulkAction.value)));
 
-      const ids = batch.map((batch) => batch.productId);
-
-      aggregatedSessionItems.value.forEach((item) => {
-        if (ids.includes(item.productId)) item.decisionOutcomeEnumId = bulkAction.value;
+      batch.forEach((item) => {
+        item.decisionOutcomeEnumId = bulkAction.value;
       });
 
       submittedItemsCount.value += batch.length;
