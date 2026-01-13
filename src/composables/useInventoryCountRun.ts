@@ -331,7 +331,7 @@ export function useInventoryCountRun() {
 
   async function getCycleCountItems(payload: any): Promise<any> {
     return api({
-      url: 'service/getInventoryCountSessionItems',
+      url: 'service/getCycleCountItems',
       method: 'POST',
       data: payload
     });

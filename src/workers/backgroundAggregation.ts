@@ -82,7 +82,7 @@ async function getById(productId: string, context: any) {
         fieldsToSelect: `productId,productName,parentProductName,internalName,mainImageUrl,goodIdentifications`
       });
     const resp = await workerApi({
-      baseURL: context.maargUrl,
+      baseURL: context.omsUrl,
       headers: {
         'Authorization': `Bearer ${context.token}`,
         'Content-Type': 'application/json'
@@ -113,7 +113,7 @@ async function findProductByIdentification(idType: string, value: string, contex
   const ident = await db.table('productIdentification').where('value').equalsIgnoreCase(value).and((item: any) => item.identKey === context.barcodeIdentification).first()
   if (ident) return ident.productId
 
-  if (!context?.token || !context?.maargUrl) return null
+  if (!context?.token || !context?.omsUrl) return null
   if (!idType) idType = context.barcodeIdentification
 
   try {
@@ -123,7 +123,7 @@ async function findProductByIdentification(idType: string, value: string, contex
         fieldsToSelect: `productId,productName,parentProductName,internalName,mainImageUrl,goodIdentifications`
       });
     const resp = await workerApi({
-      baseURL: context.maargUrl,
+      baseURL: context.omsUrl,
       headers: {
         'Authorization': `Bearer ${context.token}`,
         'Content-Type': 'application/json'
@@ -161,7 +161,7 @@ function ensureProductStored(productId: string | null, context: any) {
         fieldsToSelect: `productId,productName,parentProductName,internalName,mainImageUrl,goodIdentifications`
       });
       const resp = await workerApi({
-        baseURL: context.maargUrl,
+        baseURL: context.omsUrl,
         headers: {
           'Authorization': `Bearer ${context.token}`,
           'Content-Type': 'application/json'
@@ -434,7 +434,7 @@ async function ensureLotAndProductStored(externalLotId: string, context: any) {
     }
 
     const resp = await workerApi({
-      baseURL: context.maargUrl,
+      baseURL: context.omsUrl,
       headers: {
         Authorization: `Bearer ${context.token}`,
         'Content-Type': 'application/json'
@@ -472,7 +472,7 @@ async function matchProductLocallyAndSync(inventoryCountImportId: string, item: 
   try {
     ensureProductStored(productId, context);
     const inventory = await workerApi({
-        baseURL: context.maargUrl,
+        baseURL: context.omsUrl,
         headers: {
           'Authorization': `Bearer ${context.token}`,
           'Content-Type': 'application/json'
@@ -540,7 +540,7 @@ async function syncToServer(inventoryCountImportId: string, context: any) {
   if (isSyncing) return 0
   isSyncing = true
   try {
-    const baseUrl = context.maargUrl
+    const baseUrl = context.omsUrl
     const token = context.token
 
     const pending = await db.table('inventoryCountRecords')
@@ -644,7 +644,7 @@ async function resolveMissingSystemQOH(
         payload.lotId = record.lotId
       }
       const inventory = await workerApi({
-        baseURL: context.maargUrl,
+        baseURL: context.omsUrl,
         headers: {
           'Authorization': `Bearer ${context.token}`,
           'Content-Type': 'application/json'

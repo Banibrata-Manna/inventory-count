@@ -438,6 +438,59 @@ export const useProductStore = defineStore('productStore', {
         console.error('Failed to set facility preference', error)
       }
     },
+
+    async getFacilityLocation(facilityId: string, locationSeqId: string) {
+      try {
+
+        const payload = {
+          "inputFields": {
+            "facilityId": facilityId,
+            "locationSeqId": locationSeqId
+          },
+          "entityName": "FacilityLocation",
+          "fieldList": ["facilityId", "locationSeqId", "lpnControlled"],
+          "viewSize": 1
+        }
+        const resp = await api({
+          url: `performFind`,
+          method: 'POST',
+          data: payload
+        })
+        if (!hasError(resp)) {
+          return resp?.data?.docs?.[0];
+        }
+      } catch (err) {
+        logger.error('Failed to load facility locations', err)
+      }
+      return []
+    },
+
+    async getContainerIdForProductFacilityLocation(productId: string, facilityId: string, locationSeqId: string) {
+      try {
+        const payload = {
+          "inputFields": {
+            "productId": productId,
+            "facilityId": facilityId,
+            "locationSeqId": locationSeqId,
+            "containerId_op": "not-empty"
+          },
+          "entityName": "InventoryItem",
+          "fieldList": ["containerId"],
+          "viewSize": 1
+        }
+        const resp = await api({
+          url: `performFind`,
+          method: 'POST',
+          data: payload
+        })
+        if (!hasError(resp)) {
+          return resp?.data?.docs?.[0]?.containerId || null;
+        }
+      } catch (err) {
+        logger.error('Failed to load container ID for product facility location', err)
+      }
+      return null;
+    }
   },
 
   persist: true

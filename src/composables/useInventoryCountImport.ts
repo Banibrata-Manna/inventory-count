@@ -244,13 +244,14 @@ function currentMillis(): number {
     }
   }
 
-  async function getInventoryCountImportByProductId(inventoryCountImportId: string, productId: string) {
+  async function getInventoryCountImportByProductIdAndLocation(inventoryCountImportId: string, productId: string, locationSeqId: string) {
   if (!inventoryCountImportId || !productId) return ''; 
   try {
     const record = await db.inventoryCountRecords
       .where('inventoryCountImportId')
       .equals(inventoryCountImportId)
       .and(item => item.productId === productId)
+      .and(item => item.locationSeqId === locationSeqId)
       .first();
 
     return record || null;
@@ -341,6 +342,15 @@ function currentMillis(): number {
       .equals(inventoryCountImportId)
       .first();
     return record?.locationSeqId || '';
+  }
+
+  const getLastSessionProductId = async (inventoryCountImportId: string, locationSeqId: string) => {
+    const record = await db.lastSessionAndLocation
+      .where('inventoryCountImportId')
+      .equals(inventoryCountImportId)
+      .and(r => r.locationSeqId === locationSeqId)
+      .first();
+    return record?.productId || '';
   }
 
   const getUnmatchedItems = (inventoryCountImportId: string, locationSeqId: string) =>
@@ -470,9 +480,11 @@ function currentMillis(): number {
     return items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
   })
 
-  const mapSessionAndLocation = async (inventoryCountImportId: string, locationSeqId: string) => {
+  const mapSessionAndLocation = async (inventoryCountImportId: string, productId: string, locationSeqId: string) => {
+    console.log('Mapping session and location:', inventoryCountImportId, productId, locationSeqId);
     await db.lastSessionAndLocation.put({
       inventoryCountImportId,
+      productId,
       locationSeqId: locationSeqId
     });
   }
@@ -632,7 +644,7 @@ export function useInventoryCountImport() {
     discardSession,
     getCountedItems,
     getCurrentLocationSeqId,
-    getInventoryCountImportByProductId,
+    getInventoryCountImportByProductIdAndLocation,
     getInventoryCountImportItemCount,
     getInventoryCountImportItems,
     getInventoryCountImportItemsByProductIds,
@@ -660,6 +672,7 @@ export function useInventoryCountImport() {
     updateSessionItem,
     deleteSessionItem,
     approveInventoryCountSessionItem,
-    rejectInventoryCountSessionItem
+    rejectInventoryCountSessionItem,
+    getLastSessionProductId
   };
 }

@@ -64,7 +64,8 @@ export interface AppPreferences {
 }
 
 export interface LastSessionAndLocation {
-  inventoryCountImportId: string
+  inventoryCountImportId: string,
+  productId: string,
   locationSeqId: string
 }
 
@@ -76,7 +77,7 @@ export class CommonDB extends Dexie {
   scanEvents!: Table<ScanEvent, number>
   appPreferences!: Table<AppPreferences, string>
   lotAndProduct!: Table<LotAndProduct, [string, string]>
-  lastSessionAndLocation!: Table<LastSessionAndLocation, [string, string]>
+  lastSessionAndLocation!: Table<LastSessionAndLocation, [string, string, string]>
 
   constructor(omsInstance: string) {
     super(`${omsInstance}-CommonDB`)
@@ -89,7 +90,7 @@ export class CommonDB extends Dexie {
       scanEvents: '++id, inventoryCountImportId, scannedValue, scannedLotId, productId, lotId, aggApplied',
       appPreferences: 'key',
       lotAndProduct: '[lotId+productId], lotId, productId, externalLotId',
-      lastSessionAndLocation: '[inventoryCountImportId+locationSeqId], inventoryCountImportId, locationSeqId'
+      lastSessionAndLocation: '[inventoryCountImportId+locationSeqId+productId], inventoryCountImportId, locationSeqId, productId'
     })
   }
 }
