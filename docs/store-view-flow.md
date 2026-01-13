@@ -135,3 +135,10 @@ How this works:
 3. When user completes counting and clicks submit for review, the work effort status is changed to "completed" and session status is changed to "completed".
 
 This means all logic to aquire a session lock, check if a session is available, or release a session lock is no longer needed. and should be removed from the count detail and count item detail pages.
+
+
+## Scan event parsing
+
+A new wrapper function needs to be created that calls the create scan event function and then right after calls the update inventory count import item function. This should allow the session count detail page to call the next pending count item as soon as the user saves a count.
+
+Without this wrapper function, the session count detail page will need to wait for the update inventory count import item function to complete which currently runs as a background service worker every 10 seconds. This will cause a delay in the user experience as the user will have to wait for the update inventory count import item function to complete before they can see the next pending count item.

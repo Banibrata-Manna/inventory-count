@@ -150,12 +150,18 @@ const currentTargetItem = computed(() => uncountedItems.value[0] || null);
 
 const expectedProductIdentifier = computed(() => {
   if (!currentTargetItem.value) return translate("N/A");
-  return currentTargetItem.value.product?.internalName || currentTargetItem.value.productId;
+  const name = currentTargetItem.value.product?.internalName || currentTargetItem.value.productId;
+  const id = scannableIdentifier.value;
+  return id ? `${name} (${id})` : name;
 });
 
 const scannableIdentifier = computed(() => {
   if (!currentTargetItem.value) return '';
-  return isLpnControlled.value ? currentTargetItem.value.lotIdentifier : currentTargetItem.value.productIdentifier;
+  const idValue = isLpnControlled.value ? currentTargetItem.value.lotIdentifier : currentTargetItem.value.productIdentifier;
+  if (idValue) return idValue;
+  
+  // Fallback to internal ID if identifier is missing
+  return isLpnControlled.value ? currentTargetItem.value.lotId : currentTargetItem.value.productId;
 });
 
 const isLpnControlled = computed(() => {
@@ -173,20 +179,30 @@ const isProductTouched = ref(false);
 
 const isLocationValid = computed(() => {
   if (!scannedLocation.value) return true;
-  return scannedLocation.value === currentLocationSeqId.value;
+  return scannedLocation.value.trim().toLowerCase() === currentLocationSeqId.value?.trim().toLowerCase();
 });
 
 const isProductValid = computed(() => {
   if (!scannedIdentifier.value) return true;
-  return scannedIdentifier.value === scannableIdentifier.value;
+  const input = scannedIdentifier.value.trim().toLowerCase();
+  
+  // Check against the scannable identifier (which now has fallback)
+  if (input === scannableIdentifier.value?.trim().toLowerCase()) return true;
+  
+  // Extra safety: check against names or other identifiers if needed, 
+  // but SKU/ID fallback in scannableIdentifier should cover most cases.
+  return false;
 });
 
 const isQuantityValid = computed(() => scannedQuantity.value !== undefined && scannedQuantity.value > 0);
 
 const isFormValid = computed(() => {
-  return scannedLocation.value === currentLocationSeqId.value &&
-         scannedIdentifier.value === scannableIdentifier.value &&
-         isQuantityValid.value;
+  const loc = scannedLocation.value.trim().toLowerCase();
+  const expectedLoc = currentLocationSeqId.value?.trim().toLowerCase();
+  const prod = scannedIdentifier.value.trim().toLowerCase();
+  const expectedProd = scannableIdentifier.value?.trim().toLowerCase();
+
+  return loc === expectedLoc && prod === expectedProd && isQuantityValid.value;
 });
 
 onIonViewDidEnter(async () => {
@@ -269,6 +285,8 @@ async function handleSaveCount() {
 
   const params: any = {
     inventoryCountImportId: props.inventoryCountImportId,
+    productId: currentTargetItem.value?.productId,
+    lotId: currentTargetItem.value?.lotId,
     quantity: scannedQuantity.value,
     locationSeqId: scannedLocation.value || currentLocationSeqId.value
   };
@@ -280,7 +298,7 @@ async function handleSaveCount() {
   }
 
   try {
-    await useInventoryCountImport().recordScan(params);
+    await useInventoryCountImport().recordScanAndAggregate(params);
     showToast(translate("Count saved"));
     
     // Reset inputs for next item

@@ -39,6 +39,80 @@ function currentMillis(): number {
     await db.scanEvents.add(event);
   }
 
+  /**
+   * Records a scan event and immediately aggregates it into the inventory count record.
+   * This allows for instant UI updates via IndexDB live queries.
+   */
+  async function recordScanAndAggregate(params: RecordScanParams): Promise<void> {
+    const now = currentMillis();
+
+    // 1. Create Scan Event (marked as applied to avoid double-aggregation by worker)
+    const event: ScanEvent = {
+      inventoryCountImportId: params.inventoryCountImportId,
+      lotId: params.lotId || null,
+      scannedLotId: params.scannedLotId || null,
+      productId: params.productId || null,
+      locationSeqId: params.locationSeqId || null,
+      scannedValue: params.productIdentifier,
+      quantity: params.quantity,
+      createdAt: now,
+      aggApplied: 1
+    };
+    await db.scanEvents.add(event);
+
+    // 2. Identify and update the target inventory count record in a transaction
+    await db.transaction('rw', db.inventoryCountRecords, async () => {
+      let existing;
+
+      if (params.lotId || params.scannedLotId) {
+        // LPN mode: match by lot ID or lot identifier within the same location
+        existing = await db.inventoryCountRecords
+          .where('inventoryCountImportId').equals(params.inventoryCountImportId)
+          .and(item =>
+            item.locationSeqId === params.locationSeqId &&
+            (item.lotId === params.lotId || (!!params.scannedLotId && item.lotIdentifier === params.scannedLotId))
+          ).first();
+      } else {
+        // Product mode: match by product ID or product identifier within the same location
+        existing = await db.inventoryCountRecords
+          .where('inventoryCountImportId').equals(params.inventoryCountImportId)
+          .and(item =>
+            item.locationSeqId === params.locationSeqId &&
+            ((!!params.productId && item.productId === params.productId) || (!!params.productIdentifier && item.productIdentifier === params.productIdentifier))
+          ).first();
+      }
+
+      if (existing) {
+        await db.inventoryCountRecords.put({
+          ...existing,
+          quantity: (Number(existing.quantity) || 0) + Number(params.quantity),
+          lastScanAt: now,
+          lastUpdatedAt: now
+        });
+      } else {
+        // Create a new record if it doesn't exist (undirected scan)
+        const facilityId = useProductStore().getCurrentFacility.facilityId;
+        await db.inventoryCountRecords.add({
+          inventoryCountImportId: params.inventoryCountImportId,
+          uuid: uuidv4(),
+          productId: params.productId || null,
+          lotId: params.lotId || null,
+          productIdentifier: params.productIdentifier || '',
+          lotIdentifier: params.scannedLotId || null,
+          locationSeqId: params.locationSeqId || null,
+          quantity: Number(params.quantity),
+          status: 'active',
+          facilityId: facilityId || '',
+          createdAt: now,
+          lastScanAt: now,
+          lastUpdatedAt: now,
+          isRequested: 'N',
+          systemQuantityOnHand: 0
+        });
+      }
+    });
+  }
+
   async function storeInventoryCountItems(items: any[]) {
     if (!items?.length) return;
 
@@ -561,6 +635,7 @@ export function useInventoryCountImport() {
     lockSession,
     mapSessionAndLocation,
     recordScan,
+    recordScanAndAggregate,
     releaseSession,
     searchInventoryItemsByIdentifier,
     storeInventoryCountItems,
