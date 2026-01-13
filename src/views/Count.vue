@@ -27,6 +27,11 @@
                 {{ getDateTimeWithOrdinalSuffix(count.createdDate) }}
               </ion-card-subtitle>
             </div>
+            <div>
+              <ion-badge :color="getBadgeColor(count.currentStatusId || count.statusId)">
+                {{ translate(productStore.getStatusDescription(count.currentStatusId || count.statusId)) || count.currentStatusId || count.statusId || translate("Status unknown") }}
+              </ion-badge>
+            </div>
           </ion-card-header>
           <ion-item lines="none">
             {{ translate("Due date") }}
@@ -42,8 +47,8 @@
               <p v-else>{{ translate("Not set") }}</p>
             </ion-label>
           </ion-item>
-          <ion-button fill="outline" expand="block" size="default" class="ion-margin" @click="markInProgress(count.workEffortId)" :loading="loadingWorkEffortId === count.workEffortId" :disabled="loadingWorkEffortId === count.workEffortId || (isPlannedForFuture(count) && !hasPermission('APP_START_FUTURE_COUNT'))">
-            {{ translate("Start counting") }}
+          <ion-button fill="outline" expand="block" size="default" class="ion-margin" @click="startOrContinueCount(count)" :loading="loadingWorkEffortId === count.workEffortId" :disabled="loadingWorkEffortId === count.workEffortId || (isPlannedForFuture(count) && !hasPermission('APP_START_FUTURE_COUNT'))">
+            {{ (count.currentStatusId === 'CYCLE_CNT_IN_PRGS' || count.statusId === 'CYCLE_CNT_IN_PRGS') ? translate("Continue counting") : translate("Start counting") }}
           </ion-button>
           <!-- <div class="ion-text-center" v-if="count.statusId === 'CYCLE_CNT_CREATED' && isPlannedForFuture(count)">
             <ion-note color="warning">
@@ -171,7 +176,7 @@
 </template>
 
 <script setup>
-import { IonButton, IonCard, IonCardHeader, IonCardSubtitle, IonCardTitle, IonContent, IonHeader, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent, IonItem, IonItemGroup, IonLabel, IonList, IonNote, IonPage, IonTitle, IonToolbar, onIonViewDidEnter, IonButtons, IonModal, IonFab, IonFabButton, IonListHeader, IonRadioGroup, IonRadio, IonRefresher, IonRefresherContent, IonSelect, IonSelectOption, IonInput, alertController } from '@ionic/vue';
+import { IonBadge, IonButton, IonCard, IonCardHeader, IonCardSubtitle, IonCardTitle, IonContent, IonHeader, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent, IonItem, IonItemGroup, IonLabel, IonList, IonNote, IonPage, IonTitle, IonToolbar, onIonViewDidEnter, IonButtons, IonModal, IonFab, IonFabButton, IonListHeader, IonRadioGroup, IonRadio, IonRefresher, IonRefresherContent, IonSelect, IonSelectOption, IonInput, alertController } from '@ionic/vue';
 import { addCircleOutline, closeOutline, checkmarkDoneOutline } from 'ionicons/icons';
 import { translate } from '@/i18n';
 import { computed, ref } from "vue";
@@ -193,6 +198,7 @@ const pageIndex = ref(0);
 const pageSize = 250;
 
 const currentFacility = computed(() => useProductStore().getCurrentFacility);
+const productStore = useProductStore();
 const isScrollingEnabled = ref(false);
 const infiniteScrollRef = ref({});
 const isAddSessionModalOpen = ref(false);
@@ -204,7 +210,10 @@ const loadingWorkEffortId = ref(null);
 onIonViewDidEnter(async () => {
   isLoading.value = true;
   pageIndex.value = 0;
-  await getCycleCounts(true);
+  await Promise.all([
+    getCycleCounts(true),
+    useInventoryCountRun().loadStatusDescription()
+  ]);
   isLoading.value = false;
 });
 
@@ -227,6 +236,13 @@ const isPlannedForFuture = (count) => {
 
 function getTimeUntil(time) {
   return DateTime.fromMillis(time).toRelative();
+}
+
+function getBadgeColor(statusId) {
+  switch (statusId) {
+    case 'CYCLE_CNT_IN_PRGS': return 'primary';
+    default: return 'medium';
+  }
 }
 
 function enableScrolling() {
@@ -413,6 +429,14 @@ async function addNewSession() {
 function goToCountProgressReview(workEffortId, event) {
   event.stopPropagation();
   router.push(`/count-progress-review/${workEffortId}`);
+}
+
+async function startOrContinueCount(count) {
+  if (count.currentStatusId === 'CYCLE_CNT_IN_PRGS' || count.statusId === 'CYCLE_CNT_IN_PRGS') {
+    router.push(`/count-detail/${count.workEffortId}`);
+    return;
+  }
+  await markInProgress(count.workEffortId);
 }
 
 async function markInProgress(workEffortId) {

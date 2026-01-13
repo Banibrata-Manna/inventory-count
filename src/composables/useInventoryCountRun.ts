@@ -12,8 +12,8 @@ async function loadStatusDescription() {
 
   try {
     const resp = await getCycleCountStatusDesc()
-    if (resp?.status === 200 && resp.data?.length) {
-      useProductStore().setStatusDescriptions(resp.data);
+    if (resp?.status === 200 && resp.data?.docs?.length) {
+      useProductStore().setStatusDescriptions(resp.data.docs);
     } else {
       logger.warn('No statuses found or response invalid:', resp)
       useProductStore().setStatusDescriptions([]);
