@@ -568,7 +568,7 @@ async function syncToServer(inventoryCountImportId: string, context: any) {
       countedByUserLoginId: context.userLoginId,
       ...(item.systemQuantityOnHand !== undefined &&
         item.systemQuantityOnHand !== null && {
-          systemQuantityOnHand: item.systemQuantityOnHand
+          systemQuantity: item.systemQuantityOnHand
         })
     }))
 
