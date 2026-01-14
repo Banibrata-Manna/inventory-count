@@ -490,6 +490,27 @@ export const useProductStore = defineStore('productStore', {
         logger.error('Failed to load container ID for product facility location', err)
       }
       return null;
+    },
+
+    async updatefacilityLocation(facilityId: string, locationSeqId: string, params: any) {
+      try {
+        const payload = {
+          "facilityId": facilityId,
+          "locationSeqId": locationSeqId,
+          ...params
+        }
+        const resp = await api({
+          url: `service/updateFacilityLocation`,
+          method: 'POST',
+          data: payload
+        })
+        if (!hasError(resp)) {
+          return resp?.data;
+        }
+      } catch (err) {
+        logger.error('Failed to update facility location', err)
+      }
+      return null;
     }
   },
 

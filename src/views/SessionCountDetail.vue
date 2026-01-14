@@ -322,6 +322,11 @@ async function handleSaveCount() {
     
     // Auto-focus back to product for the next scan
     await focusNext('product');
+
+    useProductStore().updatefacilityLocation(useProductStore().getCurrentFacility.facilityId, currentLocationSeqId.value, {
+      isLocked: 'Y'
+    });
+
   } catch (err) {
     console.error(err);
     showToast(translate("Failed to record scan"));
