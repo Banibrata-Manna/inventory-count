@@ -92,7 +92,7 @@
             <ion-icon slot="end" />
             {{ translate("View error file") }}
           </ion-item>
-          <ion-item lines="none" button @click="viewFile({contentId: selectedDataManagerLog.logFileContentId})">
+          <ion-item lines="none" button @click="viewFile({dataResourceId: selectedDataManagerLog.dataResourceId})">
             <ion-icon slot="end" />
             {{ translate("View file") }}
           </ion-item>
