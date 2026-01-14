@@ -481,7 +481,6 @@ function currentMillis(): number {
   })
 
   const mapSessionAndLocation = async (inventoryCountImportId: string, productId: string, locationSeqId: string) => {
-    console.log('Mapping session and location:', inventoryCountImportId, productId, locationSeqId);
     await db.lastSessionAndLocation.put({
       inventoryCountImportId,
       productId,

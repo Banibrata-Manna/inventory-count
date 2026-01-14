@@ -619,6 +619,7 @@ async function resolveMissingSystemQOH(
     .and((item: any) =>
       item.productId &&
       item.facilityId &&
+      item.locationSeqId &&
       (item.systemQuantityOnHand === undefined || item.systemQuantityOnHand === null) &&
       (
         !item.lastSyncedAt ||  // never synced
@@ -695,7 +696,7 @@ self.onmessage = async (messageEvent: MessageEvent) => {
     await ensureDB(context);
     const count = await aggregate(inventoryCountImportId, context)
     await resolveMissingProducts(inventoryCountImportId, context)
-    if(count > 0) await resolveMissingSystemQOH(inventoryCountImportId, context)
+    await resolveMissingSystemQOH(inventoryCountImportId, context)
     await syncToServer(inventoryCountImportId, context)
 
     self.postMessage({ type: 'aggregationComplete', count })
@@ -707,7 +708,7 @@ self.onmessage = async (messageEvent: MessageEvent) => {
     setInterval(async () => {
       const count = await aggregate(inventoryCountImportId, context)
       await resolveMissingProducts(inventoryCountImportId, context)
-      if(count > 0) await resolveMissingSystemQOH(inventoryCountImportId, context)
+      await resolveMissingSystemQOH(inventoryCountImportId, context)
       await syncToServer(inventoryCountImportId, context)
 
       self.postMessage({ type: 'aggregationComplete', count })

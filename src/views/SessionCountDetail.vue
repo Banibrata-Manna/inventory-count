@@ -13,7 +13,7 @@
       <main>
         <form @submit.prevent="handleSaveCount">
           <!-- Location Card -->
-          <ion-card>
+          <ion-card :disabled="allProductsCounted">
             <ion-list lines="none">
               <ion-item-divider>
                 <ion-label>{{ translate("Location") }}</ion-label>
@@ -36,7 +36,7 @@
           </ion-card>
 
           <!-- Product/LPN Card -->
-          <ion-card>
+          <ion-card :disabled="allProductsCounted">
             <ion-list lines="none">
               <ion-item-divider>
                 <ion-label>{{ isProductContainerTracked ? translate("LPN") : translate("Product") }}</ion-label>
@@ -59,7 +59,7 @@
           </ion-card>
 
           <!-- Quantity Card -->
-          <ion-card>
+          <ion-card :disabled="allProductsCounted">
             <ion-list lines="none">
               <ion-item-divider>
                 <ion-label>{{ translate("Quantity") }}</ion-label>
@@ -80,7 +80,7 @@
             </ion-list>
           </ion-card>
 
-          <ion-button expand="block" class="ion-margin-top" type="submit" :disabled="!isFormValid">
+          <ion-button expand="block" class="ion-margin-top" type="submit" :disabled="!isFormValid || allProductsCounted">
             {{ translate("SAVE COUNT") }}
           </ion-button>
         </form>
@@ -145,6 +145,7 @@ const events = ref<any[]>([]);
 const uncountedItems = ref<any[]>([]);
 const subscriptions: Subscription[] = [];
 let aggregationWorker: Worker | null = null;
+const allProductsCounted = computed(() => uncountedItems.value.length === 0);
 
 // Computed Properties for "Expected" values
 const currentTargetItem = ref<any>(null);
@@ -178,17 +179,16 @@ const isProductTouched = ref(false);
 
 const isLocationValid = computed(() => {
   if (!scannedLocation.value) return true;
-  return scannedLocation.value?.trim().toLowerCase() === currentLocationSeqId.value?.trim().toLowerCase();
+  return scannedLocation.value?.trim() === currentLocationSeqId.value?.trim();
 });
 
 const isProductValid = computed(() => {
   if (!scannedIdentifier.value) return true;
-  const input = scannedIdentifier.value?.trim().toLowerCase();
+  const input = scannedIdentifier.value?.trim();
   
   // Check against the scannable identifier (which now has fallback)
-  console.log('Validating product scan:', input, 'against', scannableIdentifier.value?.trim().toLowerCase());
-  if (input === scannableIdentifier.value?.trim().toLowerCase()) return true;
-  
+  if (input === scannableIdentifier.value?.trim()) return true;
+
   // Extra safety: check against names or other identifiers if needed, 
   // but SKU/ID fallback in scannableIdentifier should cover most cases.
   return false;
@@ -197,10 +197,10 @@ const isProductValid = computed(() => {
 const isQuantityValid = computed(() => scannedQuantity.value !== undefined && scannedQuantity.value > 0);
 
 const isFormValid = computed(() => {
-  const loc = scannedLocation.value?.trim().toLowerCase();
-  const expectedLoc = currentLocationSeqId.value?.trim().toLowerCase();
-  const prod = scannedIdentifier.value?.trim().toLowerCase();
-  const expectedProd = scannableIdentifier.value?.trim().toLowerCase();
+  const loc = scannedLocation.value?.trim();
+  const expectedLoc = currentLocationSeqId.value?.trim();
+  const prod = scannedIdentifier.value?.trim();
+  const expectedProd = scannableIdentifier.value?.trim();
 
   return loc === expectedLoc && prod === expectedProd && isQuantityValid.value;
 });
@@ -310,6 +310,15 @@ async function handleSaveCount() {
     scannedIdentifier.value = '';
     scannedQuantity.value = undefined;
     isProductTouched.value = false;
+
+    const nextItem = uncountedItems.value.find((item: any) => item.productId !== currentProductId.value);
+
+    if (!nextItem) {
+      showToast(translate("All items counted for this location"));
+      return;
+    }
+      currentProductId.value = nextItem.productId;
+      await setupCurrentTargetItem();
     
     // Auto-focus back to product for the next scan
     await focusNext('product');
@@ -355,10 +364,27 @@ async function startSession() {
   }
 }
 
+async function setupCurrentTargetItem() {
+  currentTargetItem.value = await useInventoryCountImport().getInventoryCountImportByProductIdAndLocation(
+    props.inventoryCountImportId,
+    currentProductId.value,
+    currentLocationSeqId.value
+  );
+  if (currentTargetItem.value) {
+    currentTargetItem.value.product = (await useProductMaster().getById(currentTargetItem.value.productId)).product;
+  }
+
+  if (isLpnControlled.value) {
+    const containerId = await useProductStore().getContainerIdForProductFacilityLocation(currentProductId.value, useProductStore().getCurrentFacility.facilityId, currentLocationSeqId.value);
+    if (containerId) {
+      currentTargetItem.value.containerId = containerId;
+    }
+  }
+}
+
 function setupAggregationWorker() {
   aggregationWorker = new Worker(new URL('@/workers/backgroundAggregation.ts', import.meta.url), { type: 'module' });
   const barcodeIdentification = useProductStore().getBarcodeIdentificationPref;
-  console.log('Starting aggregation worker with barcodeIdentification:', useAuthStore().getBaseUrl, useAuthStore().getOMS, barcodeIdentification);
   aggregationWorker.postMessage({
     type: 'schedule',
     payload: {
