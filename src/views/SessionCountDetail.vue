@@ -90,7 +90,7 @@
           <ion-list-header>
             <ion-label>{{ translate("Recent Scans") }}</ion-label>
           </ion-list-header>
-          <ion-item v-for="event in events.slice(0, 5)" :key="event.createdAt">
+          <ion-item v-for="event in events" :key="event.createdAt">
             <ion-label>
               <h2>{{ event.product?.internalName || event.scannedValue }}</h2>
               <p>{{ event.locationSeqId }}</p>
@@ -145,8 +145,9 @@ const events = ref<any[]>([]);
 const uncountedItems = ref<any[]>([]);
 const subscriptions: Subscription[] = [];
 let aggregationWorker: Worker | null = null;
-const allProductsCounted = computed(() => uncountedItems.value.length === 0);
-
+const allProductsCounted = computed(() =>
+  uncountedItems.value.filter((item: any) => item.isBlocked !== 'Y').length === 0
+);
 // Computed Properties for "Expected" values
 const currentTargetItem = ref<any>(null);
 
@@ -311,7 +312,7 @@ async function handleSaveCount() {
     scannedQuantity.value = undefined;
     isProductTouched.value = false;
 
-    const nextItem = uncountedItems.value.find((item: any) => item.productId !== currentProductId.value);
+    const nextItem = uncountedItems.value.find((item: any) => item.productId !== currentProductId.value && item.isBlocked !== 'Y');
 
     if (!nextItem) {
       showToast(translate("All items counted for this location"));

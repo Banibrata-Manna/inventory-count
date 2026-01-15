@@ -170,7 +170,10 @@ async function fetchItems() {
       throw new Error("Invalid response");
     }
 
-    const blockedItems = resp.data.blockedItems || [];
+    const blockedItems = (resp.data.blockedItems || []).map((item: any) => ({
+      ...item,
+      isBlocked: 'Y'
+    }));
     const readyItems = resp.data.readyToCountItems || [];
 
     totalCount.value = resp.data.itemsCount || (

@@ -36,6 +36,7 @@ export interface InventoryCountImportItem {
   lastSyncedBatchId?: string | null
   aggApplied?: number
   isRequested?: string,
+  isBlocked?: string,
   systemQuantityOnHand: number
 }
 
@@ -86,7 +87,7 @@ export class CommonDB extends Dexie {
       products: 'productId, updatedAt',
       productIdentification: '[productId+identKey], identKey, value',
       productInventory: '[productId+facilityId], productId, facilityId',
-      inventoryCountRecords: '[inventoryCountImportId+uuid], inventoryCountImportId, uuid, productIdentifier, lotIdentifier, productId, lotId, quantity, isRequested',
+      inventoryCountRecords: '[inventoryCountImportId+uuid], inventoryCountImportId, uuid, productIdentifier, lotIdentifier, productId, lotId, quantity, isRequested, isBlocked',
       scanEvents: '++id, inventoryCountImportId, scannedValue, scannedLotId, productId, lotId, aggApplied',
       appPreferences: 'key',
       lotAndProduct: '[lotId+productId], lotId, productId, externalLotId',

@@ -137,7 +137,8 @@ function currentMillis(): number {
         lastUpdatedAt: item.lastUpdatedStamp || currentMillis(),
         lastSyncedAt: item.lastUpdatedStamp || currentMillis(), //Important: to ignore the items during first aggregation
         lastSyncedBatchId: null,
-        aggApplied: 0
+        aggApplied: 0,
+        isBlocked: item.isBlocked
       }));
 
       // Dexie table name for inventory count items
