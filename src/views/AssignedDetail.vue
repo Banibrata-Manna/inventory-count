@@ -111,7 +111,10 @@
                           <ion-thumbnail slot="start">
                             <Image :src="item.product.mainImageUrl"/>
                           </ion-thumbnail>
-                          <ion-label>{{ item.product.internalName }}</ion-label>
+                          <ion-label>
+                            {{ item.product.internalName }}
+                            <p>{{ translate("Location") }}: {{ item.locationSeqId || '-' }}</p>
+                          </ion-label>
                         </ion-item>
                       </div>
                       <ion-label class="stat">
