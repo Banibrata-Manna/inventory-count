@@ -218,12 +218,12 @@ function buildFilterParams() {
 
   if (filters.value.facilityIds.length) {
     params.facilityId = filters.value.facilityIds.join(',');
-    params.facilityId_op = 'in';
+    params.facilityId_op = 'EntityOperator.IN';
   }
 
   if (filters.value.status) {
     params.statusId = filters.value.status;
-    params.statusId_op = 'in';
+    params.statusId_op = 'EntityOperator.IN';
   }
 
   if (filters.value.countType) {
@@ -254,6 +254,7 @@ async function getClosedCycleCounts() {
     pageSize: pageSize.value,
     pageIndex: pageIndex.value,
     statusId: filters.value.status || ["CYCLE_CNT_CLOSED","CYCLE_CNT_CNCL"],
+    statusId_op: "EntityOperator.IN",
   };
 
   const params = {
@@ -335,8 +336,13 @@ async function applyFilters() {
 }
 
 function buildExportPayload() {
-  // Same keys as list filters, but without paging/status fields
-  return buildFilterParams();
+  // Same keys as list filters, but without paging fields
+  const params = buildFilterParams();
+  if (!params.statusId) {
+    params.statusId = filters.value.status || ["CYCLE_CNT_CLOSED","CYCLE_CNT_CNCL"];
+    params.statusId_op = 'EntityOperator.IN';
+  }
+  return params;
 }
 
 async function updateFilters(key: any, value: any) {

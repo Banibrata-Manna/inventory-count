@@ -133,25 +133,34 @@ const getCycleCountImportErrors = async (payload: any): Promise<any> => {
 
 const queueCycleCountsFileExport = async (payload: any): Promise<any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/export`,
-    method: "post",
+    url: "service/queueCycleCountsExport",
+    method: "POST",
     data: payload
   });
 }
 
-const getExportedCycleCountsSystemMessages = async (payload: any): Promise<any> => {
+const getCycleCountExportLogs = async (payload: any): Promise<any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/systemMessages`,
-    method: "get",
-    params: payload
+    url: "service/getCycleCountExportLogs",
+    method: "POST",
+    data: payload
   });
 };
 
 const getExportedCycleCountsFileData = async (payload: any): Promise<any> => {
   return api({
-    url: `inventory-cycle-count/cycleCounts/export/${payload.systemMessageId}`,
+    url: "service/getExportedCycleCountsFileData",
+    method: "POST",
+    data: payload
+  });
+};
+
+const downloadExportedCycleCountsFile = async (payload: any): Promise<any> => {
+  return api({
+    url: "DownloadCsvFile",
     method: "get",
-    params: payload
+    params: payload,
+    responseType: "blob"
   });
 };
 
@@ -353,7 +362,8 @@ export function useInventoryCountRun() {
     getCycleCountUploadedFileData,
     getCycleCountImportErrors,
     getExportedCycleCountsFileData,
-    getExportedCycleCountsSystemMessages,
+    getCycleCountExportLogs,
+    downloadExportedCycleCountsFile,
     submitProductReview,
     getCreatedAndAssignedWorkEfforts,
     getCycleCntImportSystemMessages,
