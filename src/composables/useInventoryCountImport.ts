@@ -246,7 +246,7 @@ function currentMillis(): number {
   }
 
   async function getInventoryCountImportByProductIdAndLocation(inventoryCountImportId: string, productId: string, locationSeqId: string) {
-  if (!inventoryCountImportId || !productId) return ''; 
+  if (!inventoryCountImportId || !productId || !locationSeqId) return ''; 
   try {
     const record = await db.inventoryCountRecords
       .where('inventoryCountImportId')
