@@ -59,15 +59,15 @@ function getDateTimeWithOrdinalSuffix(time: any) {
 }
 
 // Helper to convert date string (YYYY-MM-DD) to ISO start/end of day
-function formatDateTime(dateStr: string, endOfDay = false) {
+function convertDateTimeStringToMillis(dateStr: string, endOfDay = false) {
   if (!dateStr) return '';
   const dt = DateTime.fromISO(dateStr);
   const final = endOfDay ? dt.endOf('day') : dt.startOf('day');
-  return final.toFormat("yyyy-MM-dd HH:mm:ss.SSS");
+  return final.toMillis();
 }
 
 export {
-  formatDateTime,
+  convertDateTimeStringToMillis,
   getDateWithOrdinalSuffix,
   getDateTimeWithOrdinalSuffix,
   initDeviceId

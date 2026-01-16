@@ -130,7 +130,7 @@ import router from '@/router';
 import { useInventoryCountRun } from "@/composables/useInventoryCountRun"
 import { loader, showToast, getFacilityChipLabel } from '@/services/uiUtils';
 import { useProductStore } from '@/stores/productStore';
-import { getDateWithOrdinalSuffix, formatDateTime } from '@/services/utils';
+import { getDateWithOrdinalSuffix, convertDateTimeStringToMillis } from '@/services/utils';
 import { DateTime } from 'luxon';
 import { hasError } from '@/stores/authStore';
 import logger from '@/logger';
@@ -231,16 +231,16 @@ function buildFilterParams() {
   }
 
   if (filters.value.createdDateFrom) {
-    params.createdDateFrom = formatDateTime(filters.value.createdDateFrom, false);
+    params.createdDateFrom = convertDateTimeStringToMillis(filters.value.createdDateFrom, false);
   }
   if (filters.value.createdDateTo) {
-    params.createdDateTo = formatDateTime(filters.value.createdDateTo, true);
+    params.createdDateTo = convertDateTimeStringToMillis(filters.value.createdDateTo, true);
   }
   if (filters.value.closedDate) {
-    params.closedDate = formatDateTime(filters.value.closedDate, false);
+    params.closedDate = convertDateTimeStringToMillis(filters.value.closedDate, false);
   }
   if (filters.value.closedDateTo) {
-    params.closedDateTo = formatDateTime(filters.value.closedDateTo, true);
+    params.closedDateTo = convertDateTimeStringToMillis(filters.value.closedDateTo, true);
   }
   if (searchQuery.value?.trim()) {
     params.keyword = searchQuery.value.trim();
