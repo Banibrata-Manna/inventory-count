@@ -104,7 +104,7 @@
           :show-status="true"
           :show-compliance="true"
           :show-sort="true"
-          :show-select="true"
+          :show-select="false"
           :status-options="[
             { label: translate('Open'), value: 'open' },
             { label: translate('Accepted'), value: 'accepted' },
@@ -129,12 +129,14 @@
                     <!-- HEADER -->
                     <div class="list-item count-item-rollup" slot="header">
                       <div class="item-key">
-                        <ion-checkbox :color="item.decisionOutcomeEnumId ? 'medium' : 'primary'" :disabled="item.decisionOutcomeEnumId" @click.stop="stopAccordianEventProp" :checked="isSelected(item) || item.decisionOutcomeEnumId" @ionChange="() => toggleSelectedForReview(item)"></ion-checkbox>
                         <ion-item lines="none">
                           <ion-thumbnail slot="start">
                             <Image :src="item.product?.mainImageUrl || item.detailImageUrl" />
                           </ion-thumbnail>
-                          <ion-label>{{ item.product?.internalName || item.internalName }}</ion-label>
+                          <ion-label>
+                            {{ item.product?.internalName || item.internalName }}
+                            <p>{{ translate("Location") }}: {{ item.locationSeqId || '-' }}</p>
+                          </ion-label>
                         </ion-item>
                       </div>
 
@@ -205,31 +207,8 @@
     <!-- FOOTER ACTIONS -->
     <ion-footer>
       <ion-toolbar>
-        <ion-buttons slot="start">
-          <ion-button
-            :disabled="selectedProductsReview.length === 0"
-            fill="outline"
-            color="success"
-            size="small"
-            @click="submitSelectedProductReviews('APPLIED')"
-          >
-            {{ translate("Accept") }}
-          </ion-button>
-
-          <ion-button
-            :disabled="selectedProductsReview.length === 0"
-            fill="outline"
-            color="danger"
-            size="small"
-            class="ion-margin-horizontal"
-            @click="submitSelectedProductReviews('SKIPPED')"
-          >
-            {{ translate("Reject") }}
-          </ion-button>
-        </ion-buttons>
-
         <ion-buttons slot="end">
-          <ion-button :disabled="isLoading" fill="outline" color="dark" size="small" @click="handleCloseClick">
+          <ion-button :disabled="isLoading" fill="outline" color="dark" size="small" @click="closeCycleCount">
             {{ translate("Close") }}
           </ion-button>
         </ion-buttons>
@@ -296,8 +275,7 @@
 <script setup lang="ts">
 import {
   IonAlert, IonProgressBar, IonAccordion, IonAccordionGroup,
-  IonBackButton, IonBadge, IonButtons, IonButton, IonCard, IonCardContent,
-  IonCheckbox, IonContent, IonFooter, IonHeader, IonIcon,
+  IonBackButton, IonBadge, IonButtons, IonButton, IonCard, IonCardContent, IonContent, IonFooter, IonHeader, IonIcon,
   IonItem, IonLabel, IonList, IonModal, IonPage,
   IonRadio, IonRadioGroup, IonTitle, IonToolbar,
   IonThumbnail, onIonViewDidEnter
@@ -565,7 +543,7 @@ async function closeCycleCount() {
   try {
     await useInventoryCountRun().updateWorkEffort({
       workEffortId: props.workEffortId,
-      statusId: "CYCLE_CNT_CLOSED",
+      currentStatusId: "CYCLE_CNT_CLOSED",
       actualCompletionDate: DateTime.now().toMillis(),
     });
     router.replace(`/closed/${props.workEffortId}`);
