@@ -216,6 +216,35 @@ function currentMillis(): number {
     return resultSet
   }
 
+  async function updateInventoryCountItem(
+    inventoryCountImportId: string,
+    uuid: string,
+    payload: Record<string, any>
+  ) {
+    if (!inventoryCountImportId || !uuid || !payload) return;
+
+    try {
+      const table = db.table('inventoryCountRecords');
+
+      const updates: Record<string, any> = {};
+
+      Object.entries(payload).forEach(([key, value]) => {
+        if (value !== undefined) {
+          updates[key] = value;
+        }
+      });
+
+      updates.inventoryCountImportId = inventoryCountImportId;
+
+      await table
+        .where({ uuid, inventoryCountImportId })
+        .modify(updates);
+
+    } catch (err) {
+      console.error('[IndexedDB] Failed to update item', err);
+    }
+  }
+
   async function getInventoryCountImportItems(inventoryCountImportId: string) {
     try {
       const records = await db.inventoryCountRecords
@@ -632,6 +661,14 @@ const getSessionLock = async (payload: any): Promise<any> => {
       method: 'GET'
     })
   }
+
+  async function getInventoryCountImportItemFromServer(uuid: string) {
+    return api({
+      url: `service/getImportItem`,
+      method: 'POST',
+      data: { uuid }
+    })
+  }
   
 /**
  * Composable to manage InventoryCountImport related operations using singleton pattern
@@ -673,6 +710,8 @@ export function useInventoryCountImport() {
     deleteSessionItem,
     approveInventoryCountSessionItem,
     rejectInventoryCountSessionItem,
-    getLastSessionProductId
+    getLastSessionProductId,
+    getInventoryCountImportItemFromServer,
+    updateInventoryCountItem
   };
 }
